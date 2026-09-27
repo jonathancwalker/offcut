@@ -1,0 +1,84 @@
+[
+  {
+    "type": "reorder",
+    "pieceId": "pollen-collar",
+    "index": 9
+  },
+  {
+    "type": "transform",
+    "pieceId": "wing-lower-left",
+    "x": 401.98,
+    "y": 725.55,
+    "rotation": 6
+  },
+  {
+    "type": "transform",
+    "pieceId": "wing-lower-right",
+    "x": 671.8,
+    "y": 654.02,
+    "rotation": 163
+  },
+  {
+    "type": "transform",
+    "pieceId": "wing-upper-left",
+    "x": 333.23,
+    "y": 530,
+    "rotation": 10
+  },
+  {
+    "type": "transform",
+    "pieceId": "wing-upper-right",
+    "x": 603.5,
+    "y": 460.42,
+    "rotation": 316
+  },
+  {
+    "type": "transform",
+    "pieceId": "piece-65aa666b",
+    "x": 431.09,
+    "y": 282.65,
+    "rotation": -13
+  },
+  {
+    "type": "transform",
+    "pieceId": "city-body",
+    "x": 521.6,
+    "y": 643.54,
+    "rotation": -13
+  },
+  {
+    "type": "transform",
+    "pieceId": "pollen-collar",
+    "x": 457.03,
+    "y": 363.9,
+    "rotation": 342
+  },
+  {
+    "type": "transform",
+    "pieceId": "antenna-mask-left",
+    "x": 402.84,
+    "y": 289.17,
+    "rotation": -13
+  },
+  {
+    "type": "transform",
+    "pieceId": "antenna-mask-right",
+    "x": 465.68,
+    "y": 274.66,
+    "rotation": -13
+  },
+  {
+    "type": "transform",
+    "pieceId": "earth-head",
+    "x": 462.43,
+    "y": 387.28,
+    "rotation": 339
+  },
+  {
+    "type": "transform",
+    "pieceId": "lunar-island",
+    "x": 518,
+    "y": 1015,
+    "rotation": 3
+  }
+]

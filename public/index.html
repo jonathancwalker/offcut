@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#f5f4ee">
+  <title>Offcut — a studio for constrained imagination</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cpath fill='%23294f3c' d='M2 2h17v17H2zm19 0h17v17H21zM2 21h17v17H2zm19 0h17L21 38z'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="app-header">
+    <a class="brand" href="/" aria-label="Offcut home"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>offcut<span class="brand-period">.</span></a>
+    <span class="brand-description">A studio for constrained imagination</span>
+    <div class="header-actions"><span id="connection" class="connection"><i></i>Local studio</span><button id="agent-button" class="quiet-button">Connect an agent <span aria-hidden="true">↗</span></button><button id="export-button" class="primary-button">Export work <span aria-hidden="true">↗</span></button></div>
+  </header>
+  <main class="studio">
+    <aside class="materials-panel">
+      <div class="panel-heading"><div><p class="eyebrow">THE STARTING POINT</p><h2>Your materials</h2></div><button id="upload-button" class="icon-button" aria-label="Add source images" title="Add source images">+</button></div>
+      <p class="panel-intro">A few images. Endless ways to see them.</p>
+      <div id="sources" class="source-list" aria-label="Source images"></div>
+      <button id="upload-more" class="upload-button"><span aria-hidden="true">+</span> Add your own images</button>
+      <input id="source-input" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden>
+      <div class="material-footnote"><span class="tiny-mark" aria-hidden="true">↗</span><p>Choose a source to cut a fragment.<br>Every piece keeps its origin.</p></div>
+      <div class="tray-heading"><h3>Off the canvas</h3><span id="tray-count">0</span></div>
+      <div id="tray" class="tray"><p class="subtle">Removed pieces wait here.</p></div>
+      <button id="import-button" class="text-button import-project">Open a saved project</button><input id="project-input" type="file" accept="application/json,.json" hidden>
+    </aside>
+    <section class="composition-panel" aria-label="Composition studio">
+      <div class="composition-heading"><div><p class="eyebrow">OPEN EXPLORATION <span class="separator">/</span> NO TARGET IMAGE</p><input id="composition-title" class="composition-title" aria-label="Composition title" value="Untitled composition" maxlength="200"></div><button id="new-button" class="quiet-button">New work <span aria-hidden="true">+</span></button></div>
+      <div class="worktable" id="worktable">
+        <div class="table-label"><span id="canvas-size">1000 × 1200</span><span>PORTRAIT CANVAS</span></div>
+        <div id="canvas-shell" class="canvas-shell">
+          <svg id="composition" viewBox="0 0 1000 1200" role="group" aria-label="Collage canvas" xmlns="http://www.w3.org/2000/svg"></svg>
+          <div id="empty-canvas" class="empty-canvas"><span class="empty-shape" aria-hidden="true"></span><h2>What could this become?</h2><p>Start with a fragment.<br>You decide what it’s about.</p><button id="first-cut" class="first-cut">Make your first cut <span aria-hidden="true">↗</span></button></div>
+        </div>
+        <div class="canvas-toolbar"><div><button id="undo-button" class="icon-button" aria-label="Undo last action" title="Undo (⌘Z)">↶</button><button id="redo-button" class="icon-button" aria-label="Redo last action" title="Redo (⌘⇧Z)">↷</button></div><span id="canvas-help">Cut a source to begin</span><button id="deselect-button" class="text-button">Deselect</button></div>
+      </div>
+      <div class="replay-panel"><div class="replay-heading"><div class="replay-title"><span class="record-dot" aria-hidden="true"></span><h3>The making</h3><span id="step-label">0 actions</span></div><button id="replay-button" class="text-button">▶ Replay</button></div><input id="timeline" type="range" min="0" max="0" value="0" step="1" aria-label="Replay action"><div class="timeline-caption"><span id="action-caption">Every cut and placement will be recorded.</span><button id="live-button" class="text-button" hidden>Return to live ↗</button></div></div>
+    </section>
+    <aside class="details-panel">
+      <div class="inspector-section"><p class="eyebrow">ON THE WORKTABLE</p><h2 id="inspector-title">Room for possibility</h2><div id="piece-inspector"><div class="inspector-empty"><div class="paper-stack" aria-hidden="true"><i></i><i></i><i></i></div><p>Select a fragment to turn it,<br>resize it, or find its source.</p></div></div></div>
+      <div class="rules-section"><div class="section-title"><h3>The constraints</h3><span class="rules-lock" aria-label="Rules enforced">↳</span></div><div class="rule-line"><span>Fragments cut</span><strong id="piece-budget">0 / 24</strong></div><div class="budget-track"><i id="piece-progress"></i></div><div class="rule-line"><span>Actions used</span><strong id="action-budget">0 / 120</strong></div><ul class="rules-list"><li>Original imagery only</li><li>Each source area used once</li><li>Cut, move, rotate, resize, layer</li><li>No painting or generated fills</li></ul><button id="rules-button" class="text-button">View experiment rules <span aria-hidden="true">↗</span></button></div>
+      <div class="notes-section"><label for="statement">A note about the work <span>OPTIONAL</span></label><textarea id="statement" rows="4" maxlength="4000" placeholder="What did you notice in the materials? What did the work become?"></textarea><span id="save-status" class="save-status">Changes save on this computer.</span></div>
+      <div class="studio-footer"><span>OFFCUT / EXPERIMENT 001</span><p>Same materials. Different possibilities.</p></div>
+    </aside>
+  </main>
+  <dialog id="cut-dialog" class="cut-dialog"><div class="dialog-header"><div><p class="eyebrow">TAKE SOMETHING WITH YOU</p><h2 id="cut-title">Cut a fragment</h2></div><button class="icon-button close-dialog" aria-label="Close cutting view">×</button></div><div class="cut-toolbar"><div class="segmented"><button id="rectangle-tool" class="active" aria-pressed="true">Rectangle</button><button id="polygon-tool" aria-pressed="false">Polygon</button></div><span id="cut-instruction">Drag to draw a rectangle.</span><button id="clear-cut" class="text-button">Clear</button></div><div class="cut-stage"><svg id="source-canvas" xmlns="http://www.w3.org/2000/svg" aria-label="Source image cutting area"></svg></div><div class="cut-footer"><div><p id="cut-credit" class="subtle"></p><span id="cut-measurement" class="cut-measurement">Shaded areas have already been used.</span></div><button id="commit-cut" class="primary-button" disabled>Cut & place <span aria-hidden="true">↗</span></button></div><p class="sr-only" id="cut-accessible-help">Use the numeric rectangle fields to cut without a pointer.</p><details class="precise-cut"><summary>Precise rectangle coordinates</summary><div class="coordinate-fields"><label>X<input id="cut-x" type="number" min="0" value="0"></label><label>Y<input id="cut-y" type="number" min="0" value="0"></label><label>Width<input id="cut-width" type="number" min="1" value="200"></label><label>Height<input id="cut-height" type="number" min="1" value="200"></label><button id="set-cut" class="secondary-button">Set selection</button></div></details></dialog>
+  <dialog id="info-dialog" class="info-dialog"><div class="dialog-header"><h2 id="info-title"></h2><button class="icon-button close-dialog" aria-label="Close dialog">×</button></div><div id="info-content"></div></dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

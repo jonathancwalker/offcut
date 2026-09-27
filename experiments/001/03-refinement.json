@@ -1,0 +1,11 @@
+[
+  {"type":"transform","pieceId":"wing-upper-left","x":342,"y":493,"scale":0.96,"rotation":23},
+  {"type":"transform","pieceId":"wing-upper-right","x":621,"y":486,"scale":1.01,"rotation":-31},
+  {"type":"transform","pieceId":"wing-lower-left","x":365,"y":699,"scale":0.86,"rotation":19},
+  {"type":"transform","pieceId":"wing-lower-right","x":644,"y":690,"scale":0.82,"rotation":176},
+  {"type":"cut","sourceId":"botanical","pieceId":"pollen-collar","polygon":[[346,96],[372,59],[403,42],[426,17],[451,28],[481,5],[510,19],[543,7],[577,27],[596,69],[595,127],[570,167],[524,187],[468,199],[419,187],[377,152]]},
+  {"type":"place","pieceId":"pollen-collar","x":500,"y":359,"scale":0.96,"rotation":-5},
+  {"type":"reorder","pieceId":"pollen-collar","index":7},
+  {"type":"cut","sourceId":"cosmos","pieceId":"lunar-island","polygon":[[100,1300],[230,1275],[470,1250],[760,1240],[1030,1264],[1280,1305],[1470,1358],[1430,1410],[1180,1460],[800,1490],[430,1470],[200,1430],[60,1370]]},
+  {"type":"place","pieceId":"lunar-island","x":500,"y":1010,"scale":0.52,"rotation":-2}
+]

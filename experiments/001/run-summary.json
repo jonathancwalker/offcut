@@ -1,0 +1,39 @@
+{
+  "title": "The Migratory City",
+  "mode": "exploratory, human-seeded, open-ended collage",
+  "startingActions": 5,
+  "agentActions": 48,
+  "totalActions": 53,
+  "fragments": 12,
+  "newFragments": 11,
+  "actionTypes": {
+    "cut": 11,
+    "place": 11,
+    "reorder": 8,
+    "transform": 17,
+    "describe": 1
+  },
+  "successfulBatches": 5,
+  "rejectedBatches": 0,
+  "sources": [
+    {
+      "id": "botanical",
+      "name": "Marsh marigold · 1896",
+      "fragmentCount": 6,
+      "cutAreaPixels": 353480
+    },
+    {
+      "id": "city",
+      "name": "The Flatiron · New York",
+      "fragmentCount": 1,
+      "cutAreaPixels": 63487.5
+    },
+    {
+      "id": "cosmos",
+      "name": "Earthrise · Apollo 8",
+      "fragmentCount": 5,
+      "cutAreaPixels": 589061.5
+    }
+  ],
+  "imageSha256": "d961a94784eae2de20444fdeaaba1e5732764e21b3b9d633ea77fbe69be37d8e"
+}

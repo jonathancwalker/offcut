@@ -1,0 +1,13 @@
+node_modules/
+.data/
+test-results/
+*.log
+.DS_Store
+.env
+.env.*
+!.env.example
+
+# Large intermediate exports are reproducible from the canonical saved projects.
+# Keep the original and final projects, action logs, stage commands, and PNGs.
+experiments/*/*-state.json
+experiments/*/*.project.json

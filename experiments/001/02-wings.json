@@ -1,0 +1,20 @@
+[
+  {"type":"cut","sourceId":"botanical","pieceId":"wing-upper-left","polygon":[[495,1032],[510,935],[553,883],[591,879],[622,919],[630,971],[695,963],[751,946],[795,953],[844,1001],[818,1048],[834,1105],[790,1167],[709,1190],[568,1237],[519,1190]]},
+  {"type":"place","pieceId":"wing-upper-left","x":346,"y":508,"scale":1.13,"rotation":27},
+  {"type":"reorder","pieceId":"wing-upper-left","index":1},
+  {"type":"cut","sourceId":"botanical","pieceId":"wing-upper-right","polygon":[[589,641],[624,605],[665,585],[725,607],[783,626],[847,669],[903,697],[966,754],[984,814],[981,889],[917,883],[846,861],[794,880],[726,869],[661,833],[626,770]]},
+  {"type":"place","pieceId":"wing-upper-right","x":620,"y":481,"scale":1.12,"rotation":-25},
+  {"type":"reorder","pieceId":"wing-upper-right","index":2},
+  {"type":"cut","sourceId":"botanical","pieceId":"wing-lower-left","polygon":[[33,630],[76,621],[117,587],[161,574],[204,584],[251,610],[293,632],[312,675],[340,731],[364,784],[319,806],[263,801],[190,786],[120,761],[62,716],[41,671]]},
+  {"type":"place","pieceId":"wing-lower-left","x":348,"y":700,"scale":0.99,"rotation":16},
+  {"type":"reorder","pieceId":"wing-lower-left","index":1},
+  {"type":"cut","sourceId":"botanical","pieceId":"wing-lower-right","polygon":[[122,965],[151,892],[222,816],[269,832],[305,878],[314,933],[358,880],[415,861],[451,881],[451,929],[424,1001],[377,1049],[290,1086],[209,1079],[152,1051],[127,1012]]},
+  {"type":"place","pieceId":"wing-lower-right","x":667,"y":699,"scale":0.87,"rotation":181},
+  {"type":"reorder","pieceId":"wing-lower-right","index":2},
+  {"type":"transform","pieceId":"piece-65aa666b","y":274},
+  {"type":"cut","sourceId":"cosmos","pieceId":"antenna-mask-left","polygon":[[737,37],[764,37],[764,55],[769,80],[776,95],[786,109],[788,167],[791,211],[737,211]]},
+  {"type":"place","pieceId":"antenna-mask-left","x":464,"y":274,"scale":1},
+  {"type":"cut","sourceId":"cosmos","pieceId":"antenna-mask-right","polygon":[[892,37],[900,37],[900,211],[860,211],[859,173],[857,127],[861,111],[876,97],[885,76],[890,55]]},
+  {"type":"place","pieceId":"antenna-mask-right","x":528.5,"y":274,"scale":1},
+  {"type":"reorder","pieceId":"earth-head","index":9}
+]

@@ -1,0 +1,32 @@
+[
+  {
+    "id": "botanical",
+    "name": "Marsh marigold · 1896",
+    "file": "botanical.jpg",
+    "width": 989,
+    "height": 1500,
+    "credit": "Edward Step / Favourite Flowers (1896), via Wikimedia Commons",
+    "url": "https://commons.wikimedia.org/wiki/File:Marsh_Marigold-Favourite_Flowers_Garden_Greenhouse-1-0033-7.png",
+    "license": "Public domain"
+  },
+  {
+    "id": "city",
+    "name": "The Flatiron · New York",
+    "file": "city.jpg",
+    "width": 812,
+    "height": 1024,
+    "credit": "Detroit Publishing Co. / Library of Congress",
+    "url": "https://www.loc.gov/pictures/item/2016800547/",
+    "license": "No known restrictions on publication"
+  },
+  {
+    "id": "cosmos",
+    "name": "Earthrise · Apollo 8",
+    "file": "cosmos.jpg",
+    "width": 1500,
+    "height": 1500,
+    "credit": "NASA / Apollo 8 (1968)",
+    "url": "https://science.nasa.gov/resource/the-rising-earth-as-seen-by-apollo-8/",
+    "license": "U.S. government work; NASA media usage guidelines"
+  }
+]
