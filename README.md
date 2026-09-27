@@ -2,6 +2,8 @@
 
 A local collage studio for exploring what an AI agent can invent from a fixed set of existing images. There is no target image and no prescribed theme. A person or agent chooses the subject, cuts fragments, and builds a composition through a small, enforced action vocabulary.
 
+See [ROADMAP.md](ROADMAP.md) for the experiments-first development plan and early public gallery, and [the research plan](docs/RESEARCH_PLAN.md) for proposed measurements and studies. These documents describe future work; the current app remains a local studio with an action API and replay.
+
 ## Run
 
 Requires Node.js 22 or newer and the `sharp` image library.
@@ -67,7 +69,7 @@ lib/render.mjs      Source-preserving SVG and PNG rendering
 server.mjs          Local HTTP API and persistent action history
 tests/              Engine, renderer, and API integration checks
 docs/               Interface design and experiment architecture
-experiments/001/    First artwork, source-bearing projects, actions and audit
+experiments/        Saved artworks, source projects, prompts, actions and audits
 ```
 
 Experiment checkpoint state copies and per-stage portable projects are kept locally but ignored by Git because they repeat embedded images. The original and final portable projects, stage commands, API log, PNG checkpoints, final SVG, and readable trajectory are versioned.

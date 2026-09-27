@@ -2,6 +2,8 @@
 
 The studio and Experiment 001 are implemented. Items below are proposed work; they are not model-launcher or benchmark features that already exist.
 
+Experiment 002 now adds an independent fresh-context demonstration with its prompt, observations, action events and audit. The [product roadmap](ROADMAP.md) sets the current delivery sequence: experiments first, a small public preview in parallel, then a published pilot and broader community features. [The research plan](docs/RESEARCH_PLAN.md) defines proposed measurements and study designs. No provider runner or public deployment has been built yet.
+
 ## Agreed first comparison
 
 Decision: September 27, 2026. Use multimodal models with image input and text/JSON action output. Give each model the same source materials, initial canvas, observation policy, command vocabulary, and experiment budget. The environment renders the artwork; models do not need image generation or desktop control. Text-only assisted experiments are deferred. The next implementation foundation is the model-neutral runner; richer trajectory playback remains in the backlog.
@@ -30,6 +32,8 @@ Depends on the experiment runner and event schema below. Basic artifact playback
 
 Status: proposed next foundation.
 
+Include the provider/key connection screen, a simple materials/models/rules setup form, isolated runs, and budget/stop controls described in the roadmap.
+
 - Separate the observation format from the action vocabulary; reuse the existing authoritative engine.
 - Add a compact observation endpoint or runner projection that omits embedded image data URLs from textual state. Attach actual images through the provider's native image-input mechanism when supported.
 - Use provider adapters for request formatting and response parsing. Support ordinary JSON output as well as structured tool calls; do not require a model to write or execute code.
@@ -51,3 +55,15 @@ Status: research backlog.
 - Compare native vision and text-assisted conditions separately unless the same assistance is supplied to both.
 - Gather blind human comparisons with separate questions for visual coherence, reinterpretation of material, surprise, and relationship between artwork and stated intention.
 - Publish uncertainty and examples before presenting an aggregate leaderboard as a validated measure of creativity.
+
+## Source library and public gallery
+
+Status: roadmap additions, September 27, 2026.
+
+- Build a searchable, attributed discovery catalog and separate immutable experimental packs with exact source hashes.
+- Begin with curated eligible museum/archive images; expand bulk ingestion and semantic search after the run and publication formats work.
+- Publish an early browsable gallery from deliberately selected demo/run bundles, with source sheets and existing action replay.
+- Add filters for model/provider, pack, condition, authoring mode, date, constraints and status; add blind browse, comparisons and exact-step links.
+- Support HF-hosted vision-language models and compatible self-hosted endpoints through the same adapter contract, validating actual image support.
+- Add community accounts, private drafts, validated uploads, publication previews, collections, attribution and reporting/removal controls after the first public showcase.
+- Keep public-gallery engagement separate from controlled research ratings, and distinguish imported artifacts from platform-recorded runs.
