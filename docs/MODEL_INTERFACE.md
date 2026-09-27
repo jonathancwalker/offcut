@@ -1,5 +1,7 @@
 # Observation and action interfaces
 
+Agreed scope, September 27, 2026: the first model comparison uses image-capable multimodal models, native image observations, and text/JSON action output. Models share source materials, initial canvas, observation policy, commands, and budget. Text-only assistance is deferred; the runner described below remains to be implemented.
+
 ## What Experiment 001 actually used
 
 The main Codex agent inspected the three source JPEGs with an image-viewing tool. After submitting action batches, it downloaded the rendered canvas from `GET /api/render.png` and inspected those PNG files through the same tool. The images arrived as image content alongside the conversation. This was direct image inspection, not screenshots of the laptop display. The image transport does not expose the model's precise internal visual tokenization or resolution handling.
@@ -65,7 +67,7 @@ The action interface does not require vision. A text-only model can use the same
 
 This should be a separate assisted observation condition. Descriptions and segmentation select and interpret the material on the model's behalf. Preselected named fragments can also change the task by removing some cutting choices. Keep the annotation pipeline fixed, record its version and outputs, and compare those runs separately or supply the same assistance to every model in that comparison.
 
-For the initial question—how a model inspects arbitrary visual material and invents an arrangement—the proposed first track uses multimodal models with image input. A later text-assisted track can investigate how much compositional ability survives a symbolic description of the same materials. Both can share the exact action engine.
+For the initial question—how a model inspects arbitrary visual material and invents an arrangement—the agreed first track uses multimodal models with image input. A later text-assisted track can investigate how much compositional ability survives a symbolic description of the same materials. Both can share the exact action engine.
 
 ## Playback coverage
 

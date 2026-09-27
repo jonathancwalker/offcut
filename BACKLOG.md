@@ -2,6 +2,10 @@
 
 The studio and Experiment 001 are implemented. Items below are proposed work; they are not model-launcher or benchmark features that already exist.
 
+## Agreed first comparison
+
+Decision: September 27, 2026. Use multimodal models with image input and text/JSON action output. Give each model the same source materials, initial canvas, observation policy, command vocabulary, and experiment budget. The environment renders the artwork; models do not need image generation or desktop control. Text-only assisted experiments are deferred. The next implementation foundation is the model-neutral runner; richer trajectory playback remains in the backlog.
+
 ## Agent trajectory playback
 
 Status: backlog. Requested September 27, 2026.
@@ -33,7 +37,7 @@ Status: proposed next foundation.
 - Freeze source inventory, initial project, rule limits, prompt, action/batch limits, and observation policy for each recorded experiment.
 - Record all attempts, errors, retries, observations, and returned outputs. Charge effort independently of undo and retained canvas history.
 - Add optional coordinate grids, consumed-area overlays, and fragment IDs to observation images only. Keep them out of the artwork and record which aids each run received.
-- Start with the visual observation track. Add an explicitly labeled text-only assisted track using fixed descriptions and spatial annotations; version and log any captioning or segmentation assistance.
+- Implement the agreed visual observation track first. Defer a text-only assisted track; if introduced later, use fixed descriptions and spatial annotations and version and log any captioning or segmentation assistance.
 
 See [the interface design](docs/MODEL_INTERFACE.md) for the current implementation and proposed contract.
 
