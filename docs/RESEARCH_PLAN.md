@@ -2,6 +2,8 @@
 
 Planning draft, September 27, 2026. No study or budget in this document has been executed or approved for spending.
 
+The [representation research track](REPRESENTATION_TRACK.md), accepted September 28, specifies numerical measurements and a path toward a validated embedding of visual recombination. It proceeds alongside product development.
+
 ## Scope of the claim
 
 Study how multimodal agents compose with fixed visual materials and a small action vocabulary. Report task validity, process, audience judgments and diversity separately. Aesthetic preference, operation count, embedding distance, and an artist statement are each incomplete descriptions of creativity.

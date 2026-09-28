@@ -5,6 +5,8 @@ import { dirname, extname, join, resolve, sep } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { createState, applyAction } from './lib/engine.mjs';
 import { getSharp, renderSVG, renderPNG } from './lib/render.mjs';
+import { createProviderRegistry } from './lib/providers.mjs';
+import { createRunManager } from './lib/runs.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const MAX_BODY_BYTES = 40 * 1024 * 1024;
@@ -150,6 +152,12 @@ export const API_HELP = {
     'POST /api/reset': 'Clear the artwork and action history; keep sources by default. Use {keepSources:false} for a completely empty worktable.',
     'GET /api/project': 'Download the full portable project, including sources and action history.',
     'POST /api/project': 'Import a previously exported project. Every action is replayed and checked before the current worktable is replaced.',
+    'GET /api/providers': 'List available provider connections without exposing API keys.',
+    'POST /api/runs': 'Start an isolated blank experiment using a frozen copy of the current source inventory. Supply provider, model, prompt, and optional bounded run limits.',
+    'GET /api/runs': 'List saved experiments and their progress.',
+    'GET /api/runs/:id/events': 'Read observations, requests, returned model output, batch results and termination events.',
+    'GET /api/runs/:id/export': 'Download the complete run bundle with deduplicated observation images and replayable project.',
+    'POST /api/runs/:id/stop': 'Cancel an experiment and retain its committed history.',
   },
   actions: [
     { type: 'cut', sourceId: 'source-id', polygon: [[20, 20], [200, 20], [200, 180], [20, 180]], pieceId: 'my-fragment' },
@@ -163,7 +171,7 @@ export const API_HELP = {
 };
 
 /** Construct the local app without binding a port (also used by integration tests). */
-export async function createApp({ publicDir = join(ROOT, 'public'), dataDir = join(ROOT, '.data'), initialSources, persist = true, logger = console } = {}) {
+export async function createApp({ publicDir = join(ROOT, 'public'), dataDir = join(ROOT, '.data'), initialSources, persist = true, logger = console, providerRegistry = createProviderRegistry() } = {}) {
   const sessionPath = join(dataDir, 'session.json');
   let project;
   let states;
@@ -184,6 +192,7 @@ export async function createApp({ publicDir = join(ROOT, 'public'), dataDir = jo
     project = makeProject(sources);
     states = reconstruct(project);
   }
+  const runs = await createRunManager({ dataDir: join(dataDir, 'runs'), providerFactory: id => providerRegistry.capture(id) });
   let mutationTail = Promise.resolve();
   let revision = randomUUID();
   const serialized = operation => {
@@ -230,6 +239,56 @@ export async function createApp({ publicDir = join(ROOT, 'public'), dataDir = jo
       checkOrigin(request, server);
       const url = new URL(request.url, 'http://127.0.0.1');
       const path = url.pathname;
+      if (request.method === 'GET' && path === '/api/providers') return sendJSON(response, 200, providerRegistry.list());
+      const providerRoute = /^\/api\/providers\/(openai)(\/test)?$/.exec(path);
+      if (providerRoute) {
+        const id = providerRoute[1];
+        if (request.method === 'DELETE' && !providerRoute[2]) return sendJSON(response, 200, providerRegistry.forget(id));
+        if (request.method === 'POST') {
+          const body = await readJSON(request);
+          return sendJSON(response, 200, providerRoute[2] ? await providerRegistry.test(id) : providerRegistry.set(id, body));
+        }
+        fail('Method not allowed.', 405);
+      }
+      if (path === '/api/runs') {
+        if (request.method === 'GET') return sendJSON(response, 200, { runs: await runs.list() });
+        if (request.method === 'POST') {
+          const spec = await readJSON(request);
+          const run = await serialized(() => runs.start({ spec, sources: clone(project.sources) }));
+          return sendJSON(response, 202, { run });
+        }
+        fail('Method not allowed.', 405);
+      }
+      const runRoute = /^\/api\/runs\/([a-zA-Z0-9_-]+)(?:\/(events|project|export|render\.png|render\.svg|stop))?$/.exec(path);
+      if (runRoute) {
+        const [, id, resource] = runRoute;
+        if (request.method === 'POST' && resource === 'stop') {
+          await readJSON(request);
+          return sendJSON(response, 200, { run: await runs.stop(id) });
+        }
+        if (request.method !== 'GET') fail('Method not allowed.', 405);
+        if (!resource) return sendJSON(response, 200, { run: await runs.get(id) });
+        if (resource === 'events') return sendJSON(response, 200, { events: await runs.events(id) });
+        let step;
+        if (url.searchParams.has('step')) {
+          const raw = url.searchParams.get('step');
+          if (!/^\d+$/.test(raw)) fail('Replay step must be a non-negative integer.');
+          step = Number(raw);
+        }
+        if (resource === 'project' || resource === 'export') {
+          const value = resource === 'project' ? await runs.project(id, { step }) : await runs.bundle(id);
+          response.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Disposition': `attachment; filename="offcut-${id}-${resource}.json"`, 'Cache-Control': 'no-store' });
+          return response.end(JSON.stringify(value, null, 2));
+        }
+        if (resource === 'render.png' || resource === 'render.svg') {
+          const state = await runs.state(id, { step });
+          const png = resource.endsWith('.png');
+          const rendered = png ? await renderPNG(state) : renderSVG(state);
+          response.writeHead(200, { 'Content-Type': png ? 'image/png' : 'image/svg+xml; charset=utf-8', 'Cache-Control': 'no-store' });
+          return response.end(rendered);
+        }
+        fail('API endpoint not found.', 404);
+      }
       if (request.method === 'GET' && (path === '/api/help' || path === '/api')) return sendJSON(response, 200, API_HELP);
       if (request.method === 'GET' && path === '/api/status') return sendJSON(response, 200, { revision, cursor: project.cursor, updatedAt: project.updatedAt });
       if (request.method === 'GET' && (path === '/api/state' || path === '/api/replay')) return sendJSON(response, 200, envelope(replayStep(url)));
@@ -325,7 +384,14 @@ export async function createApp({ publicDir = join(ROOT, 'public'), dataDir = jo
   });
   server.requestTimeout = 30_000;
   server.headersTimeout = 15_000;
-  return { server, getProject: () => clone(project), getState: () => clone(states[project.cursor]), close: () => new Promise((resolveClose, reject) => server.close(error => error ? reject(error) : resolveClose())) };
+  let closing;
+  return { server, getProject: () => clone(project), getState: () => clone(states[project.cursor]), close: () => {
+    closing ??= (async () => {
+      await runs.close();
+      if (server.listening) await new Promise((resolveClose, reject) => server.close(error => error ? reject(error) : resolveClose()));
+    })();
+    return closing;
+  } };
 }
 
 export async function startServer(options = {}) {
@@ -342,7 +408,7 @@ export async function startServer(options = {}) {
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   startServer().then(app => {
     console.log(`Offcut is ready at http://127.0.0.1:${app.server.address().port}`);
-    const shutdown = () => app.server.close(() => process.exit(0));
+    const shutdown = () => app.close().then(() => process.exit(0));
     process.on('SIGINT', shutdown);
     process.on('SIGTERM', shutdown);
   }).catch(error => { console.error(error.message); process.exitCode = 1; });

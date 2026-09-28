@@ -4,7 +4,7 @@ Drafted September 27, 2026. Priority agreed with the project owner: model experi
 
 Build a reliable experimental workbench and let a small public gallery grow directly from its recorded runs. A first public preview can show the two existing demonstrations while the model runner is being built. Open community submissions and hosted model execution do not need to be prerequisites for that preview.
 
-This is a proposed implementation sequence, not a calendar commitment. The studio, action API, basic replay, and two exploratory collages exist; the provider runner, public site, and research evaluation below are not implemented. Hosting, repository visibility, and run spending limits remain implementation decisions.
+This is a proposed implementation sequence, not a calendar commitment. As of September 28, the studio, action API, replay, two exploratory collages, and the first OpenAI runner exist. The runner includes setup, private connection handling, isolated saved runs, observations/events, limits and stop controls. Additional providers, repeat queues, a public site and research evaluation remain. Hosting, repository visibility and dollar spending controls are still implementation decisions; the initial runner exposes hard request/action/time bounds and unavailable dollar estimates explicitly.
 
 ## Milestones and release gates
 
@@ -123,6 +123,8 @@ Community publication can follow the initial gallery. Add private drafts, accoun
 Community likes are discovery signals. A separately assigned blind study is the route to research ratings. Hosted public model runs and a shared inference budget require quotas and job controls and are later scope; visitors do not need them to browse or upload eligible work.
 
 ## 6. Measurement and results worth publishing
+
+The [representation research track](docs/REPRESENTATION_TRACK.md), accepted September 28, formalizes source use, construction, novelty and diversity, then tests whether provenance improves an embedding's agreement with human similarity judgments. It begins with frozen encoders and interpretable descriptors; a learned space follows only if the data supports it.
 
 Keep four views of the result separate:
 

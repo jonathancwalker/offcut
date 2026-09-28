@@ -1,6 +1,6 @@
 # Observation and action interfaces
 
-Agreed scope, September 27, 2026: the first model comparison uses image-capable multimodal models, native image observations, and text/JSON action output. Models share source materials, initial canvas, observation policy, commands, and budget. Text-only assistance is deferred; the runner described below remains to be implemented.
+Agreed scope, September 27, 2026: the first model comparison uses image-capable multimodal models, native image observations, and text/JSON action output. Models share source materials, initial canvas, observation policy, commands, and budget. Text-only assistance is deferred. The first OpenAI runner was implemented September 28; additional providers and controlled comparisons remain planned.
 
 ## What Experiment 001 actually used
 
@@ -39,9 +39,27 @@ For example, a model can request this existing action without using a mouse:
 
 The shared engine enforces simple source polygons, source boundaries, one-time material consumption, piece/action limits, and transform bounds. The renderer clips source images and composites them into SVG and PNG. Observation and command execution are already separate.
 
-## Proposed runner
+## Integrated experiment runner
 
-This layer is not implemented yet.
+Open `/experiments.html` for the first implementation. `lib/runs.mjs` owns isolated states, source snapshots, events and recovery; `lib/providers.mjs` translates native observations to the OpenAI Responses API. Credentials live in the backend environment or session memory. Tests inject simulated providers without paid requests.
+
+| Interface | Purpose |
+| --- | --- |
+| `GET /api/providers` | Connection metadata, never credentials |
+| `POST /api/providers/openai` | Set `{apiKey}` in server memory |
+| `DELETE /api/providers/openai` | Forget the session override; an environment key may remain |
+| `POST /api/providers/openai/test` | Check authentication through model listing, without inference |
+| `GET /api/runs`, `POST /api/runs` | List runs or start a blank run from the current source inventory |
+| `GET /api/runs/:id`, `/events` | Read status/specification and recorded activity |
+| `GET /api/runs/:id/render.png?step=N` | Render an accepted-action replay position |
+| `GET /api/runs/:id/project`, `/export` | Export portable project or full run with observation assets |
+| `POST /api/runs/:id/stop` | Abort the in-flight request and stop future turns |
+
+Run input is `{provider:"openai",model,prompt,maxTurns,maxActions,maxPieces,maxOutputTokens,maxMinutes}`. Defaults are 12 turns, 120 accepted actions, 24 fragments, 4096 output tokens per turn and 10 minutes. Caps are 40 turns, 240 actions, 64 fragments, 16384 output tokens and 60 minutes. A fixed 250000-character textual context ceiling stops the run without silently removing prior text. There is no dollar estimate or spending cap yet.
+
+The model returns `{decision_note,actions,done}` with up to 12 actions per batch. The engine validates the entire batch atomically. Invalid JSON or actions consume a turn and return corrective feedback; the raw response and rejection remain in the log. A network error stops the run without a retry. Each turn receives all sources and the current canvas as native image attachments, resized to a 1536-pixel maximum edge, plus compact scene state and prior text. Original source coordinates remain authoritative.
+
+`events.jsonl` is the accepted-batch commit record; project checkpoints can be reconstructed from it. Hash-addressed assets preserve original sources, observation images and canvases. Exports include the normalized request, provider adapter metadata, raw returned output, usage, errors and stop reason. Pending usage is marked incomplete. Restart reconstructs committed actions and marks unfinished runs interrupted; automatic resume is not implemented.
 
 ```mermaid
 flowchart LR

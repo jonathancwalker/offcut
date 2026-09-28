@@ -7,12 +7,13 @@
   <title>Offcut — a studio for constrained imagination</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cpath fill='%23294f3c' d='M2 2h17v17H2zm19 0h17v17H21zM2 21h17v17H2zm19 0h17L21 38z'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="/style.css">
+  <style>@media(max-width:590px){.studio-header{height:auto;min-height:72px;flex-wrap:wrap;padding-top:12px;padding-bottom:12px;gap:7px}.studio-header .header-actions{width:100%;margin-left:0;justify-content:space-between;gap:12px}}</style>
 </head>
 <body>
-  <header class="app-header">
+  <header class="app-header studio-header">
     <a class="brand" href="/" aria-label="Offcut home"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>offcut<span class="brand-period">.</span></a>
     <span class="brand-description">A studio for constrained imagination</span>
-    <div class="header-actions"><span id="connection" class="connection"><i></i>Local studio</span><button id="agent-button" class="quiet-button">Connect an agent <span aria-hidden="true">↗</span></button><button id="export-button" class="primary-button">Export work <span aria-hidden="true">↗</span></button></div>
+    <div class="header-actions"><span id="connection" class="connection"><i></i>Local studio</span><a class="quiet-button" href="/experiments.html" style="text-decoration:none">Experiments ↗</a><button id="agent-button" class="quiet-button">Connect an agent <span aria-hidden="true">↗</span></button><button id="export-button" class="primary-button">Export work <span aria-hidden="true">↗</span></button></div>
   </header>
   <main class="studio">
     <aside class="materials-panel">

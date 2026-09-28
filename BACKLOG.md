@@ -1,16 +1,16 @@
 # Offcut backlog
 
-The studio and Experiment 001 are implemented. Items below are proposed work; they are not model-launcher or benchmark features that already exist.
+The studio, two exploratory demonstrations and the first OpenAI experiment runner are implemented. Status notes below distinguish completed foundations from further work.
 
-Experiment 002 now adds an independent fresh-context demonstration with its prompt, observations, action events and audit. The [product roadmap](ROADMAP.md) sets the current delivery sequence: experiments first, a small public preview in parallel, then a published pilot and broader community features. [The research plan](docs/RESEARCH_PLAN.md) defines proposed measurements and study designs. No provider runner or public deployment has been built yet.
+Experiment 002 adds an independent fresh-context demonstration with its prompt, observations, action events and audit. The [product roadmap](ROADMAP.md) sets the delivery sequence: experiments first, a small public preview in parallel, then a published pilot and broader community features. [The research plan](docs/RESEARCH_PLAN.md) defines proposed studies, with an accepted [numerical representation track](docs/REPRESENTATION_TRACK.md). The public gallery has not been deployed.
 
 ## Agreed first comparison
 
-Decision: September 27, 2026. Use multimodal models with image input and text/JSON action output. Give each model the same source materials, initial canvas, observation policy, command vocabulary, and experiment budget. The environment renders the artwork; models do not need image generation or desktop control. Text-only assisted experiments are deferred. The next implementation foundation is the model-neutral runner; richer trajectory playback remains in the backlog.
+Decision: September 27, 2026. Use multimodal models with image input and text/JSON action output. Give each model the same source materials, initial canvas, observation policy, command vocabulary, and experiment budget. The environment renders the artwork; models do not need image generation or desktop control. Text-only assisted experiments are deferred. The first runner is in place; additional providers and controlled multi-model comparisons follow.
 
 ## Agent trajectory playback
 
-Status: backlog. Requested September 27, 2026.
+Status: first slice implemented September 28, 2026: accepted-action playback, model activity, errors and complete run exports. Synchronized observation images, before/after detail, speed controls and turn stepping remain.
 
 Extend the existing canvas replay into a view of an agent's observable choices. The current scrubber and play/pause controls already reconstruct each accepted action, including individual actions submitted together in a batch.
 
@@ -30,7 +30,7 @@ Depends on the experiment runner and event schema below. Basic artifact playback
 
 ## Model-neutral experiment runner
 
-Status: proposed next foundation.
+Status: first OpenAI adapter and local runner implemented September 28, 2026, with setup/key connection, isolated runs, frozen sources, native image observations, append-only events, limits, stop, export and interrupted-run recovery. Live paid inference validation remains separate from automated fixture tests. Additional adapters, run queues, resume, observation aids and dollar spending controls remain.
 
 Include the provider/key connection screen, a simple materials/models/rules setup form, isolated runs, and budget/stop controls described in the roadmap.
 
@@ -67,3 +67,7 @@ Status: roadmap additions, September 27, 2026.
 - Support HF-hosted vision-language models and compatible self-hosted endpoints through the same adapter contract, validating actual image support.
 - Add community accounts, private drafts, validated uploads, publication previews, collections, attribution and reporting/removal controls after the first public showcase.
 - Keep public-gallery engagement separate from controlled research ratings, and distinguish imported artifacts from platform-recorded runs.
+
+## Quantitative representation research
+
+Status: accepted parallel research track, September 28, 2026; measurement computation is not implemented. See [the track specification](docs/REPRESENTATION_TRACK.md) for frozen visual embeddings, construction descriptors, within-pack novelty/diversity, arrangement controls and held-out human validation before learning a new space.
