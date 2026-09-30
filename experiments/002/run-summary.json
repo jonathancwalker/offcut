@@ -1,0 +1,31 @@
+{
+  "title": "Rootstock for a Small Planet",
+  "statement": "An inverted tower supports a flower whose seed is Earth. A lunar shelf crosses the specimen like a soil section; the fine roots below it make architecture briefly behave like something that can grow.",
+  "startingActions": 0,
+  "acceptedActions": 32,
+  "attemptedActions": 32,
+  "acceptedBatches": 4,
+  "rejectedBatches": 0,
+  "fragments": 10,
+  "visibleFragments": 10,
+  "sourceCount": 3,
+  "actionTypes": {
+    "cut": 10,
+    "place": 10,
+    "transform": 7,
+    "reorder": 4,
+    "describe": 1
+  },
+  "sourceImageObservations": 3,
+  "canvasImageObservations": 3,
+  "sourceInventoryUnchanged": true,
+  "sourcePixelsIdenticalToExperiment001": true,
+  "rulesAndCanvasUnchanged": true,
+  "historyMatchesRecordedAcceptedRequests": true,
+  "allActionsPassedEngineReplay": true,
+  "exportedImagesMatchReplayExactly": true,
+  "observationFileHashesVerified": true,
+  "originalWorktableUnchanged": true,
+  "imageSha256": "a00e30768ff74190f7699f757c670e73db80332231cd4b94e0fbda56bea8319a",
+  "auditAt": "2026-09-27T17:30:29.976Z"
+}

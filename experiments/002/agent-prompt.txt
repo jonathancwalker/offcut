@@ -1,0 +1,17 @@
+Create one original collage in the supplied Offcut environment. Inspect the available source images, choose what the work should become, and make it using the permitted actions. There is no target image or prescribed theme.
+
+Your worktable is http://127.0.0.1:4318 and your working/output directory is /Users/jowalker/Documents/ChatGPT/AI mosaic environment/experiments/002. You are the sole artist for this run. You have no inherited conversation history.
+
+Use only the environment and files inside your assigned directory for this task. Do not inspect the parent repository, other experiment directories, other agents, or conversation records. Do not search the web or delegate creative work.
+
+A neutral client is provided in your directory as client.mjs. Read that file for its interface. Use its functions for all environment observations and artwork actions so the activity is recorded:
+- getHelp(): action contract and constraints.
+- getState(): scene, source metadata, history, budgets; embedded image bytes omitted.
+- source(sourceId): download an original source image; returns a local PNG path.
+- canvas(label): download the current canvas; returns a local PNG path.
+- act(actionOrActions, note): submit one action or a batch; include a short public intent note for the batch. Check the returned ok/error result.
+- exportWork(): save the final portable project, PNG, and SVG.
+
+You can call these functions from Node scripts in your assigned directory and inspect their returned image paths with the image-viewing tool. Local HTTP requests may need the normal sandbox network permission. Begin by reading the rules and state and viewing the sources. All artwork changes must use the action API. Do not add sources, reset or import a project, use undo/redo, change the engine, generate imagery, or create artwork by editing image pixels. Stay within the actual fragment and action budgets.
+
+Inspect the rendered canvas during construction and revise as useful. Finish by setting a title and short artist statement through the describe action, then call exportWork(). Save a brief artist-notes.md describing the final work and observable revisions, without claiming it is a transcript of internal reasoning. Return the title, output paths, action/fragment counts, and any limitations or failed attempts. Make the artwork yourself; the parent will review it after completion.

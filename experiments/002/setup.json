@@ -1,0 +1,46 @@
+{
+  "experiment": "002",
+  "createdAt": "2026-09-27T17:20:11.788Z",
+  "context": "No inherited conversation history; neutral task and API instructions only.",
+  "artist": "Independent subagent, parent model inherited; exact provider model identifier not captured.",
+  "startingCursor": 0,
+  "startingPieces": 0,
+  "canvas": {
+    "width": 1000,
+    "height": 1200,
+    "background": "#f6f1e7"
+  },
+  "rules": {
+    "maxPieces": 24,
+    "maxActions": 120,
+    "minArea": 100,
+    "maxVertices": 16,
+    "minScale": 0.15,
+    "maxScale": 3
+  },
+  "sourceHashes": [
+    {
+      "id": "botanical",
+      "width": 989,
+      "height": 1500,
+      "sha256": "675ef9fa81611d12b012173feaaf81b594413a658f00ddc6e6ce15d0e0e2336e"
+    },
+    {
+      "id": "city",
+      "width": 812,
+      "height": 1024,
+      "sha256": "0b0a5ca3c49a9dd77a74140fcb829e31a6bfda33b27330ed7bc4923b1839cca4"
+    },
+    {
+      "id": "cosmos",
+      "width": 1500,
+      "height": 1500,
+      "sha256": "f61370651d76a4accd747b331e07aff5488502a7c16142124dacc49eff8f09d0"
+    }
+  ],
+  "sourcePixelsIdenticalToExperiment001": true,
+  "mainProjectSha256": "53d91ea1527265c871860e03555188d64f7b3512aeac00c604d10b9590777a39",
+  "mainProjectId": "9b45afb4-2103-46f9-8eea-d67f6aabc48a",
+  "worktable": "http://127.0.0.1:4318",
+  "note": "Experiment 001 began with a user-provided fragment and five actions. This run begins on an empty canvas, so it is exploratory rather than a controlled context ablation."
+}

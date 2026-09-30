@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#faf9f6">
+  <title>Work · Offcut</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cpath fill='%23232522' d='M2 2h17v17H2zm19 0h17v17H21zM2 21h17v17H2zm19 0h17L21 38z'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/work.css">
+</head>
+<body class="work-page">
+  <header class="app-header">
+    <a class="brand" href="/" aria-label="Offcut library"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>offcut</a>
+    <nav class="app-nav" aria-label="Main"><a class="nav-link" href="/">Library</a></nav>
+    <div class="header-actions">
+      <details class="app-menu work-downloads" id="download-menu" hidden>
+        <summary class="icon-button" aria-label="Download work" title="Download">↓</summary>
+        <div class="menu-items"><a id="download-image" download>Final image</a><a id="download-project" download>Project</a><a id="download-record" download>Full record</a></div>
+      </details>
+    </div>
+  </header>
+  <main class="work-main">
+    <header class="work-heading">
+      <div><a class="back-link" href="/">← Library</a><h1 id="work-identity">Work</h1><p class="work-provenance" id="work-provenance"></p></div>
+      <span class="work-status" id="work-status" hidden></span>
+    </header>
+    <div class="work-error" id="work-error" role="alert" hidden><p id="error-message"></p><button class="text-button" id="retry-work" type="button">Try again</button></div>
+    <section class="pending-work" id="pending-work" aria-labelledby="pending-title" aria-live="polite">
+      <div class="pending-mark" aria-hidden="true"><i></i><i></i><i></i></div>
+      <h2 id="pending-title">Loading work</h2>
+      <p id="pending-message"></p>
+      <button class="secondary-button" id="stop-work" type="button" hidden>Stop work</button>
+    </section>
+    <section class="finished-work" id="finished-work" hidden aria-label="Saved work">
+      <div class="work-viewer">
+        <div class="work-stage" id="work-stage" aria-busy="false">
+          <img class="work-canvas" id="work-canvas" alt="" draggable="false">
+          <p class="canvas-message" id="canvas-message" hidden></p>
+        </div>
+        <div class="playback">
+          <div class="playback-top"><div class="playback-buttons"><button class="icon-button" id="previous-step" type="button" aria-label="Previous action" title="Previous action">‹</button><button class="play-button" id="play-work" type="button">▶ Play</button><button class="icon-button" id="next-step" type="button" aria-label="Next action" title="Next action">›</button></div><span id="playback-position" class="playback-position"></span><button class="text-button" id="final-step" type="button">Final</button></div>
+          <label class="sr-only" for="work-timeline">Playback action</label><input id="work-timeline" type="range" min="0" max="0" value="0" disabled>
+          <div class="playback-caption"><span id="action-caption">Blank canvas</span><span id="canvas-size"></span></div>
+        </div>
+        <p class="work-notice" id="work-notice" hidden></p>
+      </div>
+      <aside class="work-sidebar" aria-label="Materials and model output">
+        <section class="materials-observer">
+          <div class="material-tabs" role="tablist" aria-label="Work materials"><button id="fragments-tab" type="button" role="tab" aria-selected="true" aria-controls="fragments-panel" tabindex="0">Fragments <span id="fragment-count"></span></button><button id="sources-tab" type="button" role="tab" aria-selected="false" aria-controls="sources-panel" tabindex="-1">Sources <span id="source-count"></span></button></div>
+          <div id="fragments-panel" class="material-panel" role="tabpanel" aria-labelledby="fragments-tab"><div class="fragment-grid" id="fragment-grid"></div><p class="material-empty" id="empty-fragments" hidden>No fragments were cut.</p></div>
+          <div id="sources-panel" class="material-panel" role="tabpanel" aria-labelledby="sources-tab" hidden><div class="original-grid" id="original-grid"></div><p class="material-empty" id="empty-sources" hidden>No source images.</p></div>
+        </section>
+        <section class="model-output" aria-labelledby="model-output-label"><h2 id="model-output-label"><span class="model-mark" aria-hidden="true">◇</span> Model-authored</h2><div id="model-writing"></div></section>
+        <details class="work-details" id="decision-notes"><summary>Model notes <span id="note-count"></span></summary><div id="model-notes-content" class="model-notes-content"></div></details>
+        <details class="work-details"><summary>Work details</summary><dl class="work-facts" id="work-facts"></dl><div class="brief-text" id="work-brief"></div></details>
+      </aside>
+    </section>
+  </main>
+  <dialog class="material-dialog" id="material-dialog" aria-labelledby="material-title">
+    <header class="dialog-header"><div><p class="dialog-kicker" id="material-kicker"></p><h2 id="material-title"></h2></div><button class="icon-button" id="close-material" type="button" aria-label="Close material details">×</button></header>
+    <div class="material-dialog-body"><div class="material-origin" id="material-origin"></div><div class="material-detail"><div id="material-fragment" class="material-fragment" hidden></div><dl id="material-facts" class="work-facts"></dl></div></div>
+  </dialog>
+  <script type="module" src="/work.js"></script>
+</body>
+</html>

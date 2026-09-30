@@ -1,0 +1,10 @@
+{
+  "agent": "/root/fresh_collage_artist",
+  "fork_turns": "none",
+  "modelOverride": null,
+  "reasoningEffortOverride": null,
+  "promptFile": "agent-prompt.txt",
+  "promptSha256": "64151afd632ff646f13b85b039713f2240a851709f60b3fccfa2d6f48b41dca5",
+  "parentCreativeDirection": false,
+  "dispatchedAt": "2026-09-27T17:20:38.942Z"
+}

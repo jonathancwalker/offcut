@@ -3,51 +3,44 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#f5f4ee">
-  <title>Offcut — a studio for constrained imagination</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cpath fill='%23294f3c' d='M2 2h17v17H2zm19 0h17v17H21zM2 21h17v17H2zm19 0h17L21 38z'/%3E%3C/svg%3E">
+  <meta name="theme-color" content="#faf9f6">
+  <title>Library — Offcut</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cpath fill='%23232522' d='M2 2h17v17H2zm19 0h17v17H21zM2 21h17v17H2zm19 0h17L21 38z'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/library.css">
 </head>
-<body>
+<body class="library-page">
   <header class="app-header">
-    <a class="brand" href="/" aria-label="Offcut home"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>offcut<span class="brand-period">.</span></a>
-    <span class="brand-description">A studio for constrained imagination</span>
-    <div class="header-actions"><span id="connection" class="connection"><i></i>Local studio</span><button id="agent-button" class="quiet-button">Connect an agent <span aria-hidden="true">↗</span></button><button id="export-button" class="primary-button">Export work <span aria-hidden="true">↗</span></button></div>
+    <a class="brand" href="/" aria-label="Offcut library"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>offcut</a>
+    <nav class="app-nav" aria-label="Main navigation"><a class="nav-link active" href="/" aria-current="page">Library</a></nav>
+    <div class="header-actions"><button class="primary-button" data-open-setup>Run a model</button></div>
   </header>
-  <main class="studio">
-    <aside class="materials-panel">
-      <div class="panel-heading"><div><p class="eyebrow">THE STARTING POINT</p><h2>Your materials</h2></div><button id="upload-button" class="icon-button" aria-label="Add source images" title="Add source images">+</button></div>
-      <p class="panel-intro">A few images. Endless ways to see them.</p>
-      <div id="sources" class="source-list" aria-label="Source images"></div>
-      <button id="upload-more" class="upload-button"><span aria-hidden="true">+</span> Add your own images</button>
-      <input id="source-input" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden>
-      <div class="material-footnote"><span class="tiny-mark" aria-hidden="true">↗</span><p>Choose a source to cut a fragment.<br>Every piece keeps its origin.</p></div>
-      <div class="tray-heading"><h3>Off the canvas</h3><span id="tray-count">0</span></div>
-      <div id="tray" class="tray"><p class="subtle">Removed pieces wait here.</p></div>
-      <button id="import-button" class="text-button import-project">Open a saved project</button><input id="project-input" type="file" accept="application/json,.json" hidden>
-    </aside>
-    <section class="composition-panel" aria-label="Composition studio">
-      <div class="composition-heading"><div><p class="eyebrow">OPEN EXPLORATION <span class="separator">/</span> NO TARGET IMAGE</p><input id="composition-title" class="composition-title" aria-label="Composition title" value="Untitled composition" maxlength="200"></div><button id="new-button" class="quiet-button">New work <span aria-hidden="true">+</span></button></div>
-      <div class="worktable" id="worktable">
-        <div class="table-label"><span id="canvas-size">1000 × 1200</span><span>PORTRAIT CANVAS</span></div>
-        <div id="canvas-shell" class="canvas-shell">
-          <svg id="composition" viewBox="0 0 1000 1200" role="group" aria-label="Collage canvas" xmlns="http://www.w3.org/2000/svg"></svg>
-          <div id="empty-canvas" class="empty-canvas"><span class="empty-shape" aria-hidden="true"></span><h2>What could this become?</h2><p>Start with a fragment.<br>You decide what it’s about.</p><button id="first-cut" class="first-cut">Make your first cut <span aria-hidden="true">↗</span></button></div>
-        </div>
-        <div class="canvas-toolbar"><div><button id="undo-button" class="icon-button" aria-label="Undo last action" title="Undo (⌘Z)">↶</button><button id="redo-button" class="icon-button" aria-label="Redo last action" title="Redo (⌘⇧Z)">↷</button></div><span id="canvas-help">Cut a source to begin</span><button id="deselect-button" class="text-button">Deselect</button></div>
-      </div>
-      <div class="replay-panel"><div class="replay-heading"><div class="replay-title"><span class="record-dot" aria-hidden="true"></span><h3>The making</h3><span id="step-label">0 actions</span></div><button id="replay-button" class="text-button">▶ Replay</button></div><input id="timeline" type="range" min="0" max="0" value="0" step="1" aria-label="Replay action"><div class="timeline-caption"><span id="action-caption">Every cut and placement will be recorded.</span><button id="live-button" class="text-button" hidden>Return to live ↗</button></div></div>
-    </section>
-    <aside class="details-panel">
-      <div class="inspector-section"><p class="eyebrow">ON THE WORKTABLE</p><h2 id="inspector-title">Room for possibility</h2><div id="piece-inspector"><div class="inspector-empty"><div class="paper-stack" aria-hidden="true"><i></i><i></i><i></i></div><p>Select a fragment to turn it,<br>resize it, or find its source.</p></div></div></div>
-      <div class="rules-section"><div class="section-title"><h3>The constraints</h3><span class="rules-lock" aria-label="Rules enforced">↳</span></div><div class="rule-line"><span>Fragments cut</span><strong id="piece-budget">0 / 24</strong></div><div class="budget-track"><i id="piece-progress"></i></div><div class="rule-line"><span>Actions used</span><strong id="action-budget">0 / 120</strong></div><ul class="rules-list"><li>Original imagery only</li><li>Each source area used once</li><li>Cut, move, rotate, resize, layer</li><li>No painting or generated fills</li></ul><button id="rules-button" class="text-button">View experiment rules <span aria-hidden="true">↗</span></button></div>
-      <div class="notes-section"><label for="statement">A note about the work <span>OPTIONAL</span></label><textarea id="statement" rows="4" maxlength="4000" placeholder="What did you notice in the materials? What did the work become?"></textarea><span id="save-status" class="save-status">Changes save on this computer.</span></div>
-      <div class="studio-footer"><span>OFFCUT / EXPERIMENT 001</span><p>Same materials. Different possibilities.</p></div>
-    </aside>
+  <main class="library-main">
+    <div id="page-error" class="page-error" role="alert" hidden><p id="page-error-message"></p><button id="retry-load" class="text-button">Try again</button></div>
+    <section id="pending-section" class="pending-section" aria-labelledby="pending-heading" hidden><h2 id="pending-heading">In progress</h2><div id="pending-list"></div></section>
+    <div class="collection-heading"><h1>Library <span id="run-count">—</span></h1></div>
+    <div class="collection-toolbar">
+      <label class="collection-search"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m12.5 12.5 4 4"/></svg><input id="run-search" type="search" aria-label="Search by work ID, model, or provider" placeholder="Find a work or model" autocomplete="off"></label>
+      <label class="sr-only" for="model-filter">Filter by model</label><select id="model-filter"><option value="">All models</option></select>
+      <label class="sr-only" for="status-filter">Filter by outcome</label><select id="status-filter"><option value="all">All outcomes</option><option value="completed">Completed</option><option value="archived">Archived</option><option value="limit_reached">Limit reached</option><option value="stopped">Stopped</option><option value="failed">Failed</option><option value="interrupted">Interrupted</option></select>
+      <button id="refresh-runs" class="icon-button" aria-label="Refresh library" title="Refresh library"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16.2 7.5A6.5 6.5 0 1 0 16.5 11M16.5 3.5v4.5H12"/></svg></button>
+    </div>
+    <div id="run-list" class="run-list" aria-label="Saved works"><p class="collection-loading" role="status">Loading works…</p></div>
+    <div id="empty-library" class="collection-empty" hidden><p>No finished works yet.</p><button class="text-button" data-open-setup>Run a model</button></div>
+    <div id="no-matches" class="collection-empty" hidden><p>No matching works.</p><button id="clear-filters" class="text-button">Clear filters</button></div>
+    <div id="collection-pagination" class="collection-pagination" hidden><span id="visible-count" role="status"></span><button id="show-more-runs" class="secondary-button">Show more</button></div>
+    <p id="launch-confirmation" class="sr-only" role="status"></p>
   </main>
-  <dialog id="cut-dialog" class="cut-dialog"><div class="dialog-header"><div><p class="eyebrow">TAKE SOMETHING WITH YOU</p><h2 id="cut-title">Cut a fragment</h2></div><button class="icon-button close-dialog" aria-label="Close cutting view">×</button></div><div class="cut-toolbar"><div class="segmented"><button id="rectangle-tool" class="active" aria-pressed="true">Rectangle</button><button id="polygon-tool" aria-pressed="false">Polygon</button></div><span id="cut-instruction">Drag to draw a rectangle.</span><button id="clear-cut" class="text-button">Clear</button></div><div class="cut-stage"><svg id="source-canvas" xmlns="http://www.w3.org/2000/svg" aria-label="Source image cutting area"></svg></div><div class="cut-footer"><div><p id="cut-credit" class="subtle"></p><span id="cut-measurement" class="cut-measurement">Shaded areas have already been used.</span></div><button id="commit-cut" class="primary-button" disabled>Cut & place <span aria-hidden="true">↗</span></button></div><p class="sr-only" id="cut-accessible-help">Use the numeric rectangle fields to cut without a pointer.</p><details class="precise-cut"><summary>Precise rectangle coordinates</summary><div class="coordinate-fields"><label>X<input id="cut-x" type="number" min="0" value="0"></label><label>Y<input id="cut-y" type="number" min="0" value="0"></label><label>Width<input id="cut-width" type="number" min="1" value="200"></label><label>Height<input id="cut-height" type="number" min="1" value="200"></label><button id="set-cut" class="secondary-button">Set selection</button></div></details></dialog>
-  <dialog id="info-dialog" class="info-dialog"><div class="dialog-header"><h2 id="info-title"></h2><button class="icon-button close-dialog" aria-label="Close dialog">×</button></div><div id="info-content"></div></dialog>
-  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
-  <script type="module" src="/app.js"></script>
+  <dialog id="setup-dialog" class="setup-dialog" aria-labelledby="setup-title">
+    <div class="setup-dialog-heading"><h2 id="setup-title" tabindex="-1">Run a model</h2><button id="close-setup" class="icon-button" aria-label="Close setup">×</button></div>
+    <div class="setup-dialog-content">
+      <section class="setup-section connection-section"><div class="setup-section-heading"><h3>OpenAI</h3><span id="provider-status" class="provider-status">Checking…</span></div><details id="connection-settings"><summary>Connection</summary><form id="key-form" class="connection-form"><label for="api-key">API key</label><div class="key-entry"><input id="api-key" type="password" autocomplete="off" spellcheck="false" placeholder="Paste API key" aria-describedby="key-help"><button id="save-key" type="submit" class="secondary-button">Connect</button></div><p id="key-help" class="field-help">Session only. Never saved to browser storage or exports.</p></form><div class="connection-tools"><button id="test-connection" class="text-button" disabled>Test connection</button><button id="forget-key" class="text-button" hidden>Forget key</button></div><p id="connection-message" class="field-help" role="status"></p></details></section>
+      <form id="run-form"><div class="model-field"><label for="model">Model</label><input id="model" name="model" type="text" list="available-models" required maxlength="160" autocomplete="off" placeholder="Model ID" aria-describedby="model-help"><datalist id="available-models"></datalist><p id="model-help" class="field-help">Requires image input. Listed models aren’t checked for vision support.</p></div></form>
+      <section class="setup-section sources-section"><div class="setup-section-heading"><h3>Sources <span id="materials-count"></span></h3><span class="field-help">Current source set</span></div><div id="setup-sources" class="setup-sources"><p class="field-help">Loading sources…</p></div></section>
+      <details class="assignment-details"><summary>Task &amp; constraints</summary><p id="fixed-prompt"></p><dl class="assignment-limits"><div><dt>Fragments</dt><dd>24</dd></div><div><dt>Actions</dt><dd>120</dd></div><div><dt>Turns</dt><dd>12</dd></div><div><dt>Time limit</dt><dd>10 min</dd></div><div><dt>Output tokens / turn</dt><dd>4,096</dd></div></dl><p class="field-help">Existing images only. Cut, move, rotate, scale, and layer. Each source area can be cut once.</p></details>
+    </div>
+    <div class="setup-dialog-footer"><p class="billing-note">Billed to your API account. No dollar cap yet.</p><p id="launch-error" class="form-error" role="alert" hidden></p><button id="check-launch" class="text-button" hidden>Check for a started work</button><div class="launch-row"><p id="launch-help" class="field-help" role="status">Checking connection…</p><button id="launch-run" class="primary-button" type="submit" form="run-form" disabled>Start</button></div></div>
+  </dialog>
+  <script type="module" src="/library.js"></script>
 </body>
 </html>

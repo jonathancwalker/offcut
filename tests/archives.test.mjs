@@ -1,0 +1,127 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { createArchiveCatalog } from '../lib/archives.mjs';
+import { renderPNG } from '../lib/render.mjs';
+import { startServer } from '../server.mjs';
+
+const archiveFile = number => new URL(`../experiments/${number}/final-project.json`, import.meta.url);
+const readProject = async number => JSON.parse(await readFile(archiveFile(number), 'utf8'));
+
+test('archive summaries preserve honest provenance and never invent model metadata', async () => {
+  const archives = createArchiveCatalog();
+  const summaries = await archives.list();
+  assert.deepEqual(summaries.map(record => record.id), ['archive-002', 'archive-001']);
+  for (const summary of summaries) {
+    assert.equal(summary.recordType, 'archive');
+    assert.equal(summary.status, 'archived');
+    assert.deepEqual(summary.spec, { model: null, provider: null });
+    assert.match(summary.provenance, /exact model identifier was not recorded/i);
+    assert.ok(summary.sourceManifest.every(source => !Object.hasOwn(source, 'dataUrl')));
+    assert.ok(!Object.hasOwn(summary, 'usage'));
+    assert.ok(!Object.hasOwn(summary, 'turns'));
+  }
+  const first = summaries.find(record => record.id === 'archive-001');
+  const second = summaries.find(record => record.id === 'archive-002');
+  assert.equal(first.acceptedActions, 53);
+  assert.equal(first.startingActions, 5);
+  assert.match(first.provenance, /5 human actions followed by 48 agent actions/);
+  assert.equal(second.acceptedActions, 32);
+  assert.equal(second.startingActions, 0);
+  assert.match(second.provenance, /blank canvas without prior conversation context/);
+  first.spec.model = 'not-actually-recorded';
+  first.sourceManifest[0].name = 'Changed by caller';
+  const reread = await archives.get('archive-001');
+  assert.equal(reread.spec.model, null);
+  assert.notEqual(reread.sourceManifest[0].name, 'Changed by caller');
+  assert.ok(reread.state.sources.every(source => !Object.hasOwn(source, 'dataUrl')));
+  const independentCatalog = createArchiveCatalog();
+  assert.equal((await independentCatalog.get('archive-001')).revision, reread.revision);
+});
+
+test('archived project and replay reproduce the preserved work without changing it', async () => {
+  const archives = createArchiveCatalog();
+  for (const [number, image] of [['001', 'the-migratory-city.png'], ['002', 'artwork.png']]) {
+    const id = `archive-${number}`;
+    const originalBytes = await readFile(archiveFile(number));
+    const original = JSON.parse(originalBytes);
+    assert.deepEqual(await archives.project(id), original);
+    assert.equal((await archives.get(id)).createdAt, original.createdAt);
+    assert.equal((await archives.state(id, { step: 0 })).pieces.length, 0);
+    assert.equal((await archives.state(id, { step: 1 })).pieces[0].visible, false);
+    assert.equal((await archives.state(id, { step: 2 })).pieces[0].visible, true);
+    const state = await archives.state(id);
+    const preservedPNG = await readFile(new URL(`../experiments/${number}/${image}`, import.meta.url));
+    assert.deepEqual(await renderPNG(state), preservedPNG);
+    const early = await archives.project(id, { step: 1 });
+    assert.equal(early.cursor, 1);
+    assert.deepEqual(early.actions, original.actions);
+    early.actions[0].action.type = 'not-an-action';
+    assert.deepEqual(await archives.project(id), original);
+    assert.deepEqual(await readFile(archiveFile(number)), originalBytes);
+  }
+});
+
+test('archived playback respects the saved cursor while the portable project retains full history', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'offcut-archive-cursor-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  await mkdir(join(directory, '002'));
+  const project = await readProject('002');
+  project.cursor = 1;
+  await writeFile(join(directory, '002', 'final-project.json'), JSON.stringify(project));
+  const archives = createArchiveCatalog({ directory });
+  const record = await archives.get('archive-002');
+  assert.equal(record.acceptedActions, 1);
+  assert.equal(record.title, 'Untitled composition');
+  assert.equal(record.state.pieces.length, 1);
+  assert.equal(record.state.pieces[0].visible, false);
+  const exported = await archives.project('archive-002');
+  assert.equal(exported.cursor, 1);
+  assert.equal(exported.actions.length, 32);
+  await assert.rejects(archives.state('archive-002', { step: 2 }), { status: 404 });
+  await assert.rejects(archives.project('archive-002', { step: -1 }), { status: 400 });
+  await assert.rejects(archives.get('../001'), { status: 404 });
+  await assert.rejects(archives.get('toString'), { status: 404 });
+});
+
+test('archive API is read-only, allowlisted, and validates replay queries', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'offcut-archive-api-'));
+  const app = await startServer({ port: 0, dataDir: directory, persist: false, initialSources: [] });
+  const base = `http://127.0.0.1:${app.server.address().port}`;
+  t.after(async () => { await app.close(); await rm(directory, { recursive: true, force: true }); });
+  const before = app.getProject();
+  const summaries = await (await fetch(`${base}/api/archives`)).json();
+  assert.equal(summaries.runs.length, 2);
+  const detail = await (await fetch(`${base}/api/archives/archive-001`)).json();
+  assert.equal(detail.run.acceptedActions, 53);
+  assert.equal(detail.run.state.pieces.length, 12);
+  const projectResponse = await fetch(`${base}/api/archives/archive-002/project?step=1`);
+  assert.equal(projectResponse.status, 200);
+  assert.match(projectResponse.headers.get('content-disposition'), /offcut-archive-002-project.json/);
+  const project = await projectResponse.json();
+  assert.equal(project.cursor, 1);
+  assert.equal(project.actions.length, 32);
+  const blank = await fetch(`${base}/api/archives/archive-001/render.svg?step=0`);
+  assert.equal(blank.status, 200);
+  assert.ok(!(await blank.text()).includes('<image'));
+  const png = await fetch(`${base}/api/archives/archive-002/render.png?step=2`);
+  assert.equal(png.status, 200);
+  assert.equal(png.headers.get('content-type'), 'image/png');
+  assert.deepEqual(Buffer.from(await png.arrayBuffer()), await renderPNG(await createArchiveCatalog().state('archive-002', { step: 2 })));
+  for (const step of ['-1', '1.5', 'nope', '', '9007199254740993']) {
+    const response = await fetch(`${base}/api/archives/archive-001/render.png?step=${step}`);
+    assert.equal(response.status, 400, step);
+    assert.match((await response.json()).error, /non-negative integer/);
+  }
+  assert.equal((await fetch(`${base}/api/archives/archive-001/render.png?step=54`)).status, 404);
+  for (const path of ['archive-999', 'toString', 'archive-001/events', 'archive-001/stop', '%2e%2e%2f001/project']) {
+    assert.equal((await fetch(`${base}/api/archives/${path}`)).status, 404, path);
+  }
+  for (const path of ['', '/archive-001', '/archive-001/project']) {
+    const response = await fetch(`${base}/api/archives${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    assert.equal(response.status, 405, path);
+  }
+  assert.deepEqual(app.getProject(), before);
+});
