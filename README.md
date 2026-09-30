@@ -19,7 +19,7 @@ The app listens on this computer only. The manual studio works offline without a
 
 ## Observe a model's work
 
-The home page is the **Library**. It includes recorded model runs and the two early archived works. Cards show an app-owned work ID, model, provider, date, and outcome. Search by work ID/model/provider, filter by model or outcome, and browse in pages of 24.
+The home page is the **Library**. It includes recorded model runs and three archived works. Cards show an app-owned work ID, model, provider, date, and outcome. Search by work ID/model/provider, filter by model or outcome, and browse in pages of 24.
 
 1. Open **New run** at `/new.html` from Library. Select 1–24 source images, or upload images to the local inventory and select them. The model will receive only the selected images, with a fresh copy of their material for this run.
 2. Connect an OpenAI API key and choose an image-capable model that supports the Responses API. A key entered here stays in server memory until forgotten or the server restarts; keys are not saved to browser storage, projects, or records. An `OPENAI_API_KEY` environment variable is also supported. **Check access & load models** lists accessible model IDs; listing alone does not verify image support.
@@ -41,7 +41,7 @@ The local source inventory currently holds at most 24 images and 24 MB of normal
 
 Artwork is read-only; playback never changes the record. Failed/stopped/limited runs retain their saved output and honest outcome labels. The folded work record includes the task and limits actually used, omitting information that was not recorded for older archives.
 
-The two archived works are read from `experiments/001/final-project.json` and `experiments/002/final-project.json`. Exact model identifiers were not captured. A001 includes five human seed actions; A002 began with a blank canvas and fresh agent context. Archive playback preserves those distinctions. Legacy `/experiments.html?run=…` links redirect to the new viewer.
+The three archived works are read from `experiments/001/final-project.json`, `experiments/002/final-project.json`, and `experiments/003/final-project.json`. Exact model identifiers were not captured. A001 includes five human seed actions; A002 began with a blank canvas and fresh agent context. A003 used another fresh Codex subagent and six images drawn uniformly at random without replacement from the 21-image collection, with limits of 24 fragments and 120 accepted actions. Its client allowed at most 12 attempted batches of 12 actions; these were not model turns, and no time or output-token cap was enforced. Archive playback preserves those distinctions. Legacy `/experiments.html?run=…` links redirect to the new viewer.
 
 Runs save under `.data/runs/`. Each has frozen sources and their hashes, a specification, append-only events, image observations, model outputs, and replayable accepted actions. Past source/canvas observations are stored by hash; a full run export includes their bytes. Model calls use native image inputs with images resized to at most 1536 pixels on their longest edge. Cut coordinates remain in original source pixels. Prior textual context is retained; past image attachments are not resent.
 
@@ -102,7 +102,7 @@ npm test
 
 Tests cover polygon validity and overlap, finite material, immutable state, limits, source metadata, renderer fidelity, layering, atomic action batches, undo/redo and replay, persistence, image input validation, portable imports, and local-request protection. Runner checks cover native image delivery, credential handling, isolation, invalid batches, cancellation, time/context limits, recovery and exact exported replay. Integration tests use simulated providers and bind temporary loopback ports, which need permission in a sandbox that blocks local servers.
 
-The browser workflow was also exercised for cutting, dragging, transforms, provenance, undo/redo, replay, mobile controls, and keyboard focus. Collection checks cover model/outcome filters, 50 simulated run summaries, pending/finished separation, and uncertain-network handling. Viewer checks cover exact fragment/source tracing, attributed text, archived seeds, partial output, and summary-only polling while working. Archive tests reproduce both original PNGs exactly.
+The browser workflow was also exercised for cutting, dragging, transforms, provenance, undo/redo, replay, mobile controls, and keyboard focus. Collection checks cover model/outcome filters, 50 simulated run summaries, pending/finished separation, and uncertain-network handling. Viewer checks cover exact fragment/source tracing, attributed text, archived seeds, partial output, and summary-only polling while working. Archive tests reproduce the preserved PNGs exactly.
 
 ## Project structure
 
@@ -111,7 +111,7 @@ public/             Library, run setup, observer viewer, developer studio, local
 lib/engine.mjs      Pure state transitions and geometry validation
 lib/render.mjs      Source-preserving SVG and PNG rendering
 lib/runs.mjs        Isolated model loop, observations, durable events and recovery
-lib/archives.mjs    Read-only replay of the two early saved works
+lib/archives.mjs    Read-only replay of the three archived works
 lib/providers.mjs   Private provider connections and OpenAI Responses adapter
 server.mjs          Local HTTP API and persistent action history
 tests/              Engine, renderer, and API integration checks

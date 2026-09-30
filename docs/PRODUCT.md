@@ -23,9 +23,9 @@ The user chooses source material, a model, and a bounded budget, then inspects w
 
 ## Identity and provenance
 
-Run IDs are system-owned. The display label uses eight UUID hex characters; archived records use A001/A002. Full IDs remain in URLs and records. The run's requested model ID is surfaced; no missing model version is inferred.
+Run IDs are system-owned. The display label uses eight UUID hex characters; archived records use A001/A002/A003. Full IDs remain in URLs and records. The run's requested model ID is surfaced; no missing model version is inferred.
 
-The two early works are read-only archives, separate from runner records. A001 began with five human actions; A002 began with an empty canvas and a fresh agent context. Their exact model identifiers were not recorded. Their full source/project bytes and accepted history remain intact.
+Three works are read-only archives, separate from runner records. A001 began with five human actions; A002 began with an empty canvas and a fresh agent context. A003 began with an empty canvas, another fresh Codex subagent, and six source images drawn uniformly at random without replacement from the 21-image collection. Its recorded limits are 24 fragments and 120 accepted actions. The client permitted 12 attempted batches of up to 12 actions, not 12 model turns; no time or output-token cap was enforced. Their exact model identifiers were not recorded. Their full source/project bytes and accepted history remain intact.
 
 ## Current boundaries
 
