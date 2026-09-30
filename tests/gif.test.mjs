@@ -105,6 +105,25 @@ test('GIF ends at the saved cursor while the source inventory and redo history s
   assert.equal(saved.actions.length, 9);
 });
 
+test('GIF playback retains a trimmed fragment in place and removes its discarded pixels', async () => {
+  const original = await fixture();
+  const saved = project([
+    ...original.actions.slice(0, 2).map(record => record.action),
+    { type: 'trim', pieceId: 'red', newPieceId: 'red-refined', polygon: [[8, 0], [16, 0], [16, 16], [8, 16]] },
+    { type: 'describe', title: 'Less paper', statement: 'Only the right half remains.' },
+  ], { sources: original.sources });
+  const before = structuredClone(saved);
+  const { metadata, pixel } = await decode(await renderGIF(saved));
+  assert.equal(metadata.pages, 5);
+  assert.deepEqual(pixel(2, 20, 24), RED);
+  assert.deepEqual(pixel(2, 28, 24), RED);
+  for (const frame of [3, 4]) {
+    assert.deepEqual(pixel(frame, 20, 24), WHITE, 'discarded material is absent');
+    assert.deepEqual(pixel(frame, 28, 24), RED, 'the retained half stays in place');
+  }
+  assert.deepEqual(saved, before);
+});
+
 test('an empty saved work exports a valid blank GIF with its final hold', async () => {
   const saved = project([], { canvas: { width: 80, height: 64, background: '#336699' } });
   const { metadata, pixel } = await decode(await renderGIF(saved));

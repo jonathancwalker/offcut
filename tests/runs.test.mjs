@@ -60,7 +60,8 @@ test('two turns send native source/canvas images, freeze inputs, and export exac
   assert.equal(end.costUSD, null);
   assert.equal(factoryCalls(), 1);
   assert.equal(end.spec.prompt, spec.prompt);
-  assert.equal(end.policy.version, 2);
+  assert.equal(end.policy.version, 3);
+  assert.equal(end.policy.protocol, 'offcut-actions-v3');
   assert.equal(end.policy.completion.requiresObservedCanvas, true);
   assert.equal(end.state.rules.maxVertices, 64);
   assert.equal(end.sourceManifest[0].name, before.name);
@@ -228,6 +229,27 @@ test('restart reconstructs committed batches from events and repairs a stale pro
   assert.equal(JSON.parse(await readFile(join(runDir, 'project.json'), 'utf8')).cursor, 3);
 });
 
+test('recovery preserves a saved earlier policy instead of relabeling it as trim-capable', async t => {
+  const { manager, source, dataDir, providerFactory } = await setup(t, async request =>
+    output(JSON.parse(request.messages.at(-1).text).turn === 1 ? [cut, place] : [], true));
+  const run = await manager.start({ spec, sources: [source] });
+  await finished(manager, run.id);
+  await manager.close();
+  const runDir = join(dataDir, run.id);
+  const saved = JSON.parse(await readFile(join(runDir, 'run.json'), 'utf8'));
+  const priorPolicy = { ...saved.policy, version: 2, protocol: 'offcut-actions-v2' };
+  saved.policy = priorPolicy;
+  await writeFile(join(runDir, 'run.json'), JSON.stringify(saved));
+  const events = manager.events(run.id);
+  events.find(event => event.type === 'run_started').policy = priorPolicy;
+  await writeFile(join(runDir, 'events.jsonl'), events.map(event => JSON.stringify(event) + '\n').join(''));
+  const restarted = await createRunManager({ dataDir, providerFactory });
+  t.after(() => restarted.close());
+  assert.deepEqual(restarted.get(run.id).policy, priorPolicy);
+  assert.deepEqual(restarted.events(run.id).find(event => event.type === 'run_started').policy, priorPolicy);
+  assert.deepEqual(restarted.state(run.id), manager.state(run.id));
+});
+
 test('a finish request with visual edits stays running until the rendered result is reviewed', async t => {
   const enteredReview = deferred(), confirm = deferred();
   const requests = [];
@@ -277,6 +299,72 @@ test('revisions during a final look require the revised canvas to be observed ag
   const events = manager.events(run.id);
   assert.deepEqual(events.filter(event => event.type === 'batch_result').map(event => event.completionDeferred), [true, true, false]);
   assert.equal(events.find(event => event.type === 'final_review').observedStep, 3);
+});
+
+test('a trimmed fragment is observed before completion and its lineage survives export and recovery', async t => {
+  const requests = [];
+  const trim = { type: 'trim', pieceId: 'leaf', newPieceId: 'leaf-refined', polygon: [[10, 0], [40, 0], [40, 40], [10, 40]] };
+  const { manager, source, dataDir, providerFactory } = await setup(t, async request => {
+    requests.push(request);
+    if (requests.length === 1) return output([cut, place]);
+    if (requests.length === 2) return output([trim], true);
+    return output([describe], true);
+  });
+  const run = await manager.start({ spec, sources: [source] });
+  const end = await finished(manager, run.id);
+  assert.equal(end.status, 'completed');
+  assert.equal(end.turns, 3);
+  assert.equal(end.acceptedActions, 4);
+  assert.equal(end.rejectedBatches, 0);
+  assert.match(requests[0].instructions, /"type":"trim","pieceId":"existing-id","newPieceId":"new-unique-id"/);
+  assert.match(requests[0].instructions, /Discarded material cannot be recovered/);
+  const finalMessage = requests[2].messages.at(-1);
+  const observed = JSON.parse(finalMessage.text);
+  assert.equal(observed.state.pieces[0].visible, false);
+  assert.equal(observed.state.pieces[0].supersededBy, trim.newPieceId);
+  assert.equal(observed.state.pieces[1].parentPieceId, trim.pieceId);
+  assert.equal(observed.state.pieces[1].visible, true);
+  assert.equal(observed.actionsRemaining, 117);
+  const expected = manager.state(run.id);
+  const expectedPNG = await renderPNG(expected);
+  assert.deepEqual(Buffer.from(finalMessage.images.at(-1).dataUrl.split(',')[1], 'base64'), expectedPNG);
+  assert.notEqual(requests[1].messages.at(-1).images.at(-1).dataUrl, finalMessage.images.at(-1).dataUrl);
+  const events = manager.events(run.id);
+  assert.equal(events.find(event => event.type === 'batch_result' && event.turn === 2).completionDeferred, true);
+  assert.equal(events.find(event => event.type === 'final_review').observedStep, 3);
+  const bundle = await manager.bundle(run.id);
+  assert.ok(JSON.stringify(bundle).includes('leaf-refined'));
+  assert.deepEqual(manager.project(run.id).actions.map(record => record.action), [cut, place, trim, describe]);
+  assert.equal(manager.state(run.id, { step: 2 }).pieces[0].supersededBy, undefined);
+  await manager.close();
+  await writeFile(join(dataDir, run.id, 'project.json'), await readFile(join(dataDir, run.id, 'initial.project.json')));
+  const restarted = await createRunManager({ dataDir, providerFactory });
+  t.after(() => restarted.close());
+  assert.deepEqual(restarted.state(run.id), expected);
+  assert.deepEqual(await renderPNG(restarted.state(run.id)), expectedPNG);
+  assert.equal(restarted.get(run.id).policy.version, 3);
+  assert.equal(restarted.events(run.id).filter(event => event.type === 'final_review').length, 1);
+});
+
+test('a batch that trims then tries to restore the parent leaves no partial child', async t => {
+  let calls = 0;
+  const trim = { type: 'trim', pieceId: 'leaf', newPieceId: 'child', polygon: [[10, 0], [40, 0], [40, 40], [10, 40]] };
+  const { manager, source } = await setup(t, async request => {
+    if (++calls === 1) return output([cut, place]);
+    if (calls === 2) return output([trim, place]);
+    const observed = JSON.parse(request.messages.at(-1).text);
+    assert.equal(observed.state.pieces.length, 1);
+    assert.equal(observed.state.pieces[0].visible, true);
+    assert.equal(observed.state.pieces[0].supersededBy, undefined);
+    assert.equal(observed.actionsRemaining, 118);
+    return output([], true);
+  });
+  const run = await manager.start({ spec, sources: [source] });
+  const end = await finished(manager, run.id);
+  assert.equal(end.status, 'completed');
+  assert.equal(end.rejectedBatches, 1);
+  assert.equal(end.acceptedActions, 2);
+  assert.equal(manager.events(run.id).find(event => event.type === 'batch_result' && !event.accepted).code, 'PIECE_RETIRED');
 });
 
 test('last-turn edits are preserved as partial work and never reported as reviewed completion', async t => {

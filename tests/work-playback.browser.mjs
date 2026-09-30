@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { createState, applyAction } from '../lib/engine.mjs';
-import { getSharp } from '../lib/render.mjs';
+import { getSharp, renderPNG } from '../lib/render.mjs';
 
 const require = createRequire(import.meta.url);
 let playwright;
@@ -85,6 +85,94 @@ async function expectAligned() {
 async function screenshot(name) { await page.screenshot({ path: new URL(name, output).pathname, fullPage: true }); }
 async function stagePixels() { return digest(await page.locator('#work-canvas').screenshot({ animations: 'allow' })); }
 async function mark(check) { checks.push(check); console.log(`PASS ${check}`); }
+async function checkTrimPlayback() {
+  // Serve a synthetic saved run through the browser only. This exercises the
+  // real engine, PNG renderer, and viewer without changing server data.
+  const bytes = await getSharp()(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="200" height="160"><rect width="200" height="160" fill="#d09b67"/><path d="M20 130L75 30L130 130Z" fill="#843d37"/><circle cx="170" cy="60" r="30" fill="#506d5b"/></svg>')).png().toBuffer();
+  const sources = [{ id: 'trim-source', name: 'Trim study', width: 200, height: 160, dataUrl: `data:image/png;base64,${bytes.toString('base64')}` }];
+  const rect = (x,y,w,h) => [[x,y],[x+w,y],[x+w,y+h],[x,y+h]];
+  const actions = [
+    { type:'cut',sourceId:'trim-source',pieceId:'parent',polygon:rect(20,30,110,100) },
+    { type:'place',pieceId:'parent',x:120,y:130,rotation:-17,scale:1.25 },
+    { type:'cut',sourceId:'trim-source',pieceId:'cover',polygon:rect(150,20,40,80) },
+    { type:'place',pieceId:'cover',x:172,y:105,rotation:12 },
+    { type:'trim',pieceId:'parent',newPieceId:'child',polygon:[[35,40],[120,40],[115,95],[85,110],[35,100]] },
+    { type:'trim',pieceId:'child',newPieceId:'detail',polygon:[[45,50],[110,50],[105,90],[85,100],[45,90]] },
+    { type:'cut',sourceId:'trim-source',pieceId:'tray-parent',polygon:rect(140,120,55,35) },
+    { type:'trim',pieceId:'tray-parent',newPieceId:'tray-child',polygon:rect(145,125,40,25) },
+    { type:'describe',title:'Trim study' },
+  ];
+  const trimFrames = [createState({ id:'trim-fixture',sources,canvas:{width:320,height:260,background:'#f6f1e7'} })];
+  for (const action of actions) trimFrames.push(applyAction(trimFrames.at(-1),action));
+  const fixture = { id:'trim-fixture',sources,canvas:trimFrames[0].canvas,rules:trimFrames[0].rules,cursor:actions.length,actions:actions.map((action,index) => ({index:index+1,action})) };
+  const run = { id:'run-trim-fixture',status:'completed',spec:{model:'Fixture',maxPieces:24,maxActions:120},createdAt:'2026-01-01T12:00:00Z',revision:'trim-fixture',startingActions:0 };
+  const fixtureRoute = async route => {
+    const url = new URL(route.request().url());
+    if (url.pathname.endsWith('/render.png')) {
+      const step = url.searchParams.has('step') ? Number(url.searchParams.get('step')) : actions.length;
+      return route.fulfill({status:200,contentType:'image/png',body:await renderPNG(trimFrames[step])});
+    }
+    return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(url.pathname.endsWith('/project') ? fixture : {run})});
+  };
+  await page.route('**/api/runs/run-trim-fixture{,/**}',fixtureRoute);
+  await page.goto(`${origin}/work.html?run=run-trim-fixture`);
+  await waitFrame(actions.length);
+  assert.equal(await page.locator('#fragment-count').textContent(),'6');
+  const card = id => page.locator(`[data-fragment-id="${id}"]`);
+  assert.match(await card('parent').getAttribute('class'),/is-retired/);
+  assert.equal(await card('parent').locator('.fragment-source').textContent(),'Recut as Fragment 03');
+  assert.equal(await card('detail').locator('.fragment-source').textContent(),'From Fragment 03');
+  await card('detail').click();
+  assert.equal(await page.locator('#material-kicker').textContent(),'Recut from Fragment 03');
+  await page.locator('#material-facts').getByRole('button',{name:'Fragment 03',exact:true}).click();
+  assert.equal(await page.locator('#material-title').textContent(),'Fragment 03');
+  await page.locator('#material-facts').getByRole('button',{name:'Recut as Fragment 04',exact:true}).click();
+  assert.equal(await page.locator('#material-title').textContent(),'Fragment 04');
+  await page.locator('#close-material').click();
+  assert.equal(await card('detail').evaluate(element => document.activeElement === element),true);
+  await seek(4);
+  assert.doesNotMatch(await card('parent').getAttribute('class'),/is-retired/);
+  assert.match(await card('child').getAttribute('class'),/is-future/);
+  await seek(5);
+  let outline = await outlineInfo();
+  assert.equal(outline.pieceId,'child');
+  assert.deepEqual(outline.occluders,['cover']);
+  assert.equal(await page.locator('#action-caption').textContent(),'Recut · Fragment 01 → Fragment 03');
+  assert.match(await card('parent').getAttribute('class'),/is-retired/);
+  await screenshot('trim-playback-child.png');
+  await seek(6);
+  outline = await outlineInfo();
+  assert.equal(outline.pieceId,'detail');
+  assert.deepEqual(outline.occluders,['cover']);
+  assert.equal(await card('child').locator('.fragment-source').textContent(),'Recut as Fragment 04');
+  await seek(8);
+  assert.equal((await outlineInfo()).hidden,true);
+  assert.match(await card('tray-child').getAttribute('class'),/is-unplaced/);
+  await page.locator('#final-step').click(); await waitFrame(actions.length);
+  assert.equal((await outlineInfo()).hidden,true);
+  await mark('Trim replay preserves chronological fragments, retired lineage, child outlines, occlusion, and unplaced-child behavior');
+
+  let studioState = trimFrames[4];
+  let studioCursor = 4;
+  const envelope = () => ({state:studioState,history:fixture.actions.slice(0,studioCursor),cursor:studioCursor,revision:studioCursor,canUndo:true,canRedo:false});
+  await page.route('**/api/state',route => route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(envelope())}));
+  await page.route('**/api/status',route => route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({revision:studioCursor})}));
+  await page.goto(`${origin}/studio.html`);
+  await page.locator('[data-piece="parent"]').focus();
+  await page.keyboard.press('Enter');
+  assert.equal(await page.locator('#remove-piece').isEnabled(),true);
+  // A model can retire the selected studio piece between polling updates.
+  studioState = trimFrames.at(-1); studioCursor = actions.length;
+  await page.waitForFunction(() => document.querySelector('#remove-piece')?.textContent === 'Recut');
+  assert.equal(await page.locator('#remove-piece').isDisabled(),true);
+  for (const field of ['piece-x','piece-y','piece-rotation','piece-scale','send-back','bring-front']) assert.equal(await page.locator(`#${field}`).isDisabled(),true);
+  assert.equal(await page.locator('[data-tray="parent"], [data-tray="child"], [data-tray="tray-parent"]').count(),0);
+  assert.equal(await page.locator('[data-tray="tray-child"]').count(),1);
+  assert.equal(await page.locator('#tray-count').textContent(),'1');
+  await mark('Studio polling retires selected controls and excludes consumed parents from the actionable tray');
+  await page.unroute('**/api/state'); await page.unroute('**/api/status');
+  await page.unroute('**/api/runs/run-trim-fixture{,/**}',fixtureRoute);
+}
 try {
   await page.goto(`${origin}/work.html?run=archive-003`);
   await waitFrame(finalStep);
@@ -260,6 +348,7 @@ try {
   assert.ok(samples.every(sample => sample.opacity === '1' && sample.imageCount === 1));
   assert.equal(digest(await responseBytes(`${archivePath}/project`)), digest(projectBefore));
   assert.equal(digest(await responseBytes(`${archivePath}/render.png`)), digest(pngBefore));
+  await checkTrimPlayback();
   assert.deepEqual(errors, []);
   await mark(`${samples.length} paint samples show matching image/outline and full image opacity; saved project and final PNG unchanged; no page errors`);
   await writeFile(new URL('playback-outline-qa.json', output), JSON.stringify({ origin, checks, paintSamples: samples.length, projectSHA256: digest(projectBefore), finalPNGSHA256: digest(pngBefore), errors }, null, 2));

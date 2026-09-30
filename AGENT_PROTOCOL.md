@@ -45,10 +45,22 @@ Send JSON to `POST /api/actions`, with header `Content-Type: application/json`. 
 
 These coordinates are an API example, not a suggested composition. Inspect the actual source before deciding on a cut. Cuts use source-image pixels. Placement x/y is the **center of the cut's bounding box** in canvas pixels. Rotation is clockwise in degrees; scale is uniform. A cut alone creates a piece in the tray. `place` makes it visible.
 
+### Recut a fragment
+
+```json
+{"type":"trim","pieceId":"first-fragment","newPieceId":"refined-fragment","polygon":[[350,15],[580,15],[570,190],[350,190]]}
+```
+
+The polygon uses **original source-image pixels**, not canvas coordinates or coordinates relative to the fragment. It must lie entirely inside the immediate parent polygon, remove some area, and meet the same vertex and minimum-area rules as a source cut. Shared boundary edges are allowed. `newPieceId` is required and must be unique.
+
+Trim creates a new fragment, retaining the parent's visibility, scale, rotation, and layer. The engine adjusts its bounding-box center so the retained image stays exactly in place. That derived center can fall outside the canvas when trimming a piece that extends beyond it; explicit placement coordinates must still stay inside the canvas.
+
+The old fragment is permanently hidden and marked `supersededBy`; the child records `parentPieceId`. Use the new ID afterward. The old piece cannot be placed, transformed, reordered, removed, or trimmed again. The discarded material stays consumed and cannot be cut from the source again. You may trim the child further, but cannot add any material back. Each trim costs **one action and one new fragment slot**; historical parents still count toward the fragment limit.
+
 ### Change a piece
 
 ```json
-{"type":"transform","pieceId":"first-fragment","x":420,"y":580,"rotation":-15,"scale":1.2}
+{"type":"transform","pieceId":"refined-fragment","x":420,"y":580,"rotation":-15,"scale":1.2}
 ```
 
 Supply only the properties you want to change. All coordinates must be finite and within the rules.
@@ -56,13 +68,13 @@ Supply only the properties you want to change. All coordinates must be finite an
 ### Layer and remove
 
 ```json
-{"type":"reorder","pieceId":"first-fragment","index":0}
+{"type":"reorder","pieceId":"refined-fragment","index":0}
 ```
 
 The piece array is ordered back to front, including pieces in the tray; index 0 is the back. Use `state.pieces.length - 1` for the front.
 
 ```json
-{"type":"remove","pieceId":"first-fragment"}
+{"type":"remove","pieceId":"refined-fragment"}
 ```
 
 Removal puts a fragment in the tray. It still consumes its original material. Use `place` to return it to the canvas. There is no clone operation.

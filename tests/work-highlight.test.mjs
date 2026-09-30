@@ -113,6 +113,26 @@ test('occluders are exactly the visible pieces above the target in the resulting
   ]);
 });
 
+test('trim outlines the retained child, with the retired parent absent from its mask', () => {
+  const parent = piece('parent', { rotation: 90, scale: 2 });
+  const cover = piece('cover');
+  const child = piece('child', {
+    parentPieceId: 'parent', polygon: rectangle(20, 30, 10, 10),
+    bounds: { x: 20, y: 30, width: 10, height: 10 },
+    x: 50, y: 50, rotation: 90, scale: 2,
+  });
+  const previous = frame(parent, cover);
+  const current = frame({ ...parent, visible: false, supersededBy: 'child' }, child, cover);
+  const action = { type: 'trim', pieceId: 'parent', newPieceId: 'child', polygon: child.polygon };
+  const outline = outlineForAction(previous, current, action);
+  assert.equal(outline.pieceId, 'child');
+  polygonClose(outline.polygon, [[60, 40], [60, 60], [40, 60], [40, 40]]);
+  assert.deepEqual(outline.occluders.map(item => item.pieceId), ['cover']);
+  assert.equal(outlineForAction(previous, current, { ...action, newPieceId: 'missing' }), null);
+  assert.equal(outlineForAction(previous, frame(current.pieces[0], { ...child, visible: false }, cover), action), null,
+    'a trim made in the tray has no canvas outline');
+});
+
 test('missing targets, hidden fragments, and nonvisual actions do not produce an outline', () => {
   const visible = frame(piece());
   const hidden = frame(piece('target', { visible: false, x: 80 }));

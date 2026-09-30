@@ -81,7 +81,7 @@ function makeFrames(project) {
     // Images are immutable; every replay state can share the saved source inventory.
     next.sources = frames[0].sources;
     frames.push(next);
-    if (record.action.type === 'cut') {
+    if (['cut','trim'].includes(record.action.type)) {
       const piece = next.pieces.find(item => !previous.pieces.some(existing => existing.id === item.id));
       fragments.push({piece,cutStep:index + 1,ordinal:fragments.length + 1});
     }
@@ -105,6 +105,7 @@ function fragmentSVG(piece, source, {trace=false}={}) {
 function fragmentStatus(fragment,frame=state.frames[state.step]) {
   const piece = frame.pieces.find(item => item.id === fragment.piece.id);
   if (!piece) return 'Not cut yet';
+  if (piece.supersededBy) return `Recut as ${fragmentName(piece.supersededBy)}`;
   if (piece.visible) return 'Placed';
   const lastPlacement = state.project.actions.slice(0,state.step).findLast(record => record.action.pieceId === piece.id && ['place','remove'].includes(record.action.type));
   return lastPlacement?.action.type === 'remove' ? 'Removed from canvas' : 'Unplaced';
@@ -140,11 +141,14 @@ function renderMaterials() {
 function updateFragmentStates() {
   for (const card of $('fragment-grid').children) {
     const fragment = state.fragments.find(item => item.piece.id === card.dataset.fragmentId);
+    const piece = state.frames[state.step].pieces.find(item => item.id === fragment.piece.id);
     const status = fragmentStatus(fragment);
     card.classList.toggle('is-future',status === 'Not cut yet');
-    card.classList.toggle('is-unplaced',status !== 'Not cut yet' && status !== 'Placed');
+    card.classList.toggle('is-retired',Boolean(piece?.supersededBy));
+    card.classList.toggle('is-unplaced',status !== 'Not cut yet' && status !== 'Placed' && !piece?.supersededBy);
+    card.querySelector('.fragment-source').textContent = piece?.supersededBy ? status : fragment.piece.parentPieceId ? `From ${fragmentName(fragment.piece.parentPieceId)}` : sourceName(fragment.piece.sourceId);
     card.title = `${fragmentName(fragment.piece.id)} · ${status}`;
-    card.setAttribute('aria-label',`${fragmentName(fragment.piece.id)}, ${sourceName(fragment.piece.sourceId)}, ${status}`);
+    card.setAttribute('aria-label',[fragmentName(fragment.piece.id),sourceName(fragment.piece.sourceId),fragment.piece.parentPieceId ? `Cut from ${fragmentName(fragment.piece.parentPieceId)}` : '',status].filter(Boolean).join(', '));
   }
 }
 function writingField(label,text,className) { const field = node('div','model-field'); field.append(node('span','model-field-label',label),node('p',className,text)); return field; }
@@ -202,6 +206,7 @@ function actionCaption(step) {
   const action = state.project.actions[step - 1].action;
   const seed = step <= (state.run.startingActions || 0) ? 'Seed · ' : '';
   if (action.type === 'cut') { const fragment = state.fragments.find(item => item.cutStep === step); return `${seed}Cut · ${fragmentName(fragment?.piece.id)} · ${sourceName(action.sourceId)}`; }
+  if (action.type === 'trim') return `${seed}Recut · ${fragmentName(action.pieceId)} → ${fragmentName(action.newPieceId)}`;
   if (action.type === 'describe') return seed ? 'Seed text updated' : 'Model-authored text updated';
   return `${seed}${{place:'Place',transform:'Move / transform',reorder:'Change layer',remove:'Remove'}[action.type] || 'Action'} · ${fragmentName(action.pieceId)}`;
 }
@@ -283,7 +288,7 @@ async function advancePlayback(version) {
 function openMaterial(source,fragment,opener) {
   stopPlayback();
   state.dialogOpener = opener;
-  $('material-kicker').textContent = fragment ? 'Cut from the saved original' : 'Saved original';
+  $('material-kicker').textContent = fragment ? fragment.piece.parentPieceId ? `Recut from ${fragmentName(fragment.piece.parentPieceId)}` : 'Cut from the saved original' : 'Saved original';
   $('material-title').textContent = fragment ? fragmentName(fragment.piece.id) : source.name;
   $('material-origin').replaceChildren();
   $('material-fragment').replaceChildren();
@@ -294,8 +299,17 @@ function openMaterial(source,fragment,opener) {
     $('material-origin').append(trace);
     $('material-fragment').append(fragmentSVG(fragment.piece,source));
     fact(facts,'Source',source.name);
+    const relativeLink = (id,label) => {
+      const relative = state.fragments.find(item => item.piece.id === id);
+      const button = node('button','text-button material-lineage',label); button.type = 'button';
+      button.addEventListener('click',() => openMaterial(source,relative,opener));
+      return button;
+    };
+    if (fragment.piece.parentPieceId) fact(facts,'Cut from',relativeLink(fragment.piece.parentPieceId,fragmentName(fragment.piece.parentPieceId)));
     fact(facts,'Cut at',`Action ${fragment.cutStep}${fragment.cutStep <= (state.run.startingActions || 0) ? ' · Seed' : ''}`);
-    fact(facts,'Status',fragmentStatus(fragment));
+    const piece = state.frames[state.step].pieces.find(item => item.id === fragment.piece.id);
+    const status = fragmentStatus(fragment);
+    fact(facts,'Status',piece?.supersededBy ? relativeLink(piece.supersededBy,status) : status);
     const bounds = polygonBounds(fragment.piece.polygon);
     fact(facts,'Cut size',`${number(Math.round(bounds.width))} × ${number(Math.round(bounds.height))} px`);
     fact(facts,'Area',`${number(Math.round(polygonArea(fragment.piece.polygon)))} px²`);
@@ -308,7 +322,7 @@ function openMaterial(source,fragment,opener) {
   fact(facts,'License',source.license);
   if (source.url) fact(facts,'Original',safeSourceLink(source.url));
   $('material-facts').replaceChildren(facts);
-  $('material-dialog').showModal();
+  if (!$('material-dialog').open) $('material-dialog').showModal();
   $('close-material').focus({preventScroll:true});
 }
 function setTab(selected) {

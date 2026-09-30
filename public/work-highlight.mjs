@@ -13,8 +13,8 @@ export function placedPolygon(piece) {
 }
 
 export function outlineForAction(previous, frame, action) {
-  if (!previous || !frame || !['place', 'transform', 'reorder'].includes(action?.type)) return null;
-  const index = frame.pieces.findIndex(piece => piece.id === action.pieceId);
+  if (!previous || !frame || !['place', 'transform', 'reorder', 'trim'].includes(action?.type)) return null;
+  const index = frame.pieces.findIndex(piece => piece.id === (action.type === 'trim' ? action.newPieceId : action.pieceId));
   const piece = frame.pieces[index];
   if (!piece?.visible) return null;
   const before = previous.pieces.find(item => item.id === piece.id);

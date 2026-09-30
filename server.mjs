@@ -173,8 +173,8 @@ async function validateProject(input) {
 
 export const API_HELP = {
   name: 'Offcut — a constrained collage worktable',
-  description: 'Invent a work using only existing source pixels. Every fragment is a polygon cut from supplied material. Cuts may not overlap on a source; removed pieces still consume material. Inspect your work with /api/render.png, then revise it.',
-  coordinates: 'Cuts use original source-image pixels. Placement x/y is the center of the cropped fragment on the canvas; rotation is degrees clockwise. Scale is uniform. Piece order is back to front.',
+  description: 'Invent a work using only existing source pixels. Every fragment is a polygon cut from supplied material. Source cuts may not overlap; removed and retired pieces still consume material. Trim an existing piece to create a smaller descendant, permanently discarding the remainder. Inspect your work with /api/render.png, then revise it.',
+  coordinates: 'Cuts and trims use original source-image pixels. Placement x/y is the center of the cropped fragment on the canvas; rotation is degrees clockwise. Scale is uniform. Piece order is back to front, including hidden and retired pieces. Trim preserves retained pixels in place by adjusting the bounding-box center, which may then fall outside the canvas.',
   routes: {
     'GET /api/state': 'Current state, history, cursor, and undo/redo availability. Add ?step=N to inspect the state after N actions (0 is an empty canvas). Reading a past step does not move the live cursor.',
     'GET /api/status': 'Lightweight polling endpoint: {revision,cursor,updatedAt}. Fetch /api/state only when its revision changes.',
@@ -203,9 +203,10 @@ export const API_HELP = {
     { type: 'transform', pieceId: 'my-fragment', x: 520, y: 600, rotation: 30, scale: 0.8 },
     { type: 'reorder', pieceId: 'my-fragment', index: 0 },
     { type: 'remove', pieceId: 'my-fragment' },
+    { type: 'trim', pieceId: 'my-fragment', newPieceId: 'smaller-fragment', polygon: [[30, 30], [190, 30], [190, 160], [30, 160]] },
     { type: 'describe', title: 'An original work', statement: 'What I found in these materials.' },
   ],
-  restrictions: ['No generated pixels, color filters, text overlays, arbitrary image URLs, or non-uniform stretching.', 'No material reuse: two cuts from one source cannot overlap.', 'Use pieceId on cuts for predictable subsequent references; the response state also includes all piece IDs.'],
+  restrictions: ['No generated pixels, color filters, text overlays, arbitrary image URLs, or non-uniform stretching.', 'No material reuse: two cuts from one source cannot overlap, including discarded material.', 'Trim must remove area and stay entirely within its immediate parent polygon; the same polygon rules apply. It costs one action and one additional fragment slot, inheriting visibility, placement, and layer.', 'A trimmed parent stays in history with supersededBy but cannot be used again; its child records parentPieceId. Only the smaller new fragment remains usable.', 'Use pieceId on cuts for predictable subsequent references and a required unique newPieceId on trims; the response state includes all piece IDs.'],
 };
 
 /** Construct the local app without binding a port (also used by integration tests). */
@@ -479,7 +480,7 @@ export async function createApp({ publicDir = join(ROOT, 'public'), dataDir = jo
     } catch (error) {
       if (response.destroyed) return;
       if (response.headersSent) { response.end(); return; }
-      const validationCodes = new Set(['ACTION_LIMIT', 'INVALID_ACTION', 'INVALID_POLYGON', 'INVALID_RULES', 'INVALID_SOURCE', 'MATERIAL_OVERLAP', 'PIECE_LIMIT']);
+      const validationCodes = new Set(['ACTION_LIMIT', 'INVALID_ACTION', 'INVALID_POLYGON', 'INVALID_RULES', 'INVALID_SOURCE', 'MATERIAL_OVERLAP', 'MATERIAL_EXPANSION', 'PIECE_LIMIT', 'PIECE_RETIRED']);
       const status = error.status || (validationCodes.has(error.code) ? 400 : 500);
       // Domain validation errors are safe, useful feedback for both humans and agents.
       if (status >= 500) logger.error?.(error);

@@ -35,7 +35,7 @@ The task stays open: create an original collage from the supplied material, choo
 | Standard | 24 | 120 | 12 | 10 min | 4,096 |
 | Extended | 48 | 240 | 24 | 20 min | 4,096 |
 
-These are ceilings, not promised duration, fragment count, or quality. Custom limits allow 1–64 fragments, 1–240 accepted actions, 1–40 turns, 1–60 minutes, and 256–16,384 output tokens per turn. Each turn permits up to 12 actions; rejected batches still consume a turn. Cutting and placing a fragment require separate actions.
+These are ceilings, not promised duration, fragment count, or quality. Custom limits allow 1–64 fragments, 1–240 accepted actions, 1–40 turns, 1–60 minutes, and 256–16,384 output tokens per turn. Each turn permits up to 12 actions; rejected batches still consume a turn. Cutting and placing a fragment require separate actions. Trimming an existing fragment costs one action and one additional fragment slot; its historical parent still counts toward the limit.
 
 The local source inventory currently holds at most 24 images and 24 MB of normalized image data. Uploads add to this shared inventory without changing earlier runs. Full source management, including removal and replacement, is deferred. Selection is frozen at launch, and changed or missing selected material must be reviewed before proceeding.
 
@@ -43,7 +43,7 @@ Artwork is read-only; playback never changes the record. Failed/stopped/limited 
 
 The Work viewer plays at 2× by default. Choose 0.5×, 1×, 2×, 4×, or 8× beside the playback controls; changes apply while playing and the browser remembers your preference. Each frame finishes loading before playback advances, so image-rendering time can limit the fastest rates.
 
-When a visible fragment is placed, transformed, or reordered, a thin warm outline briefly marks its actual boundary after the frame is ready. Later pieces mask the outline. Seeking in either direction marks the destination action shown in the caption; cuts, text-only changes, removals, hidden fragments, and the final view remain unmarked. Reduced motion uses a static outline for the same 750 ms instead of a fade. This is temporary viewer chrome and never appears in saved projects or PNG, SVG, or GIF exports.
+When a visible fragment is placed, trimmed, transformed, or reordered, a thin warm outline briefly marks its actual boundary after the frame is ready. Later pieces mask the outline. Seeking in either direction marks the destination action shown in the caption; source cuts, text-only changes, removals, hidden fragments, and the final view remain unmarked. Reduced motion uses a static outline for the same 750 ms instead of a fade. This is temporary viewer chrome and never appears in saved projects or PNG, SVG, or GIF exports. Trimmed parents remain available to inspect in the fragment tray, with their relationship to the new fragment.
 
 The three archived works are read from `experiments/001/final-project.json`, `experiments/002/final-project.json`, and `experiments/003/final-project.json`. Exact model identifiers were not captured. A001 includes five human seed actions; A002 began with a blank canvas and fresh agent context. A003 used another fresh Codex subagent and six images drawn uniformly at random without replacement from the 21-image collection, with limits of 24 fragments and 120 accepted actions. Its client allowed at most 12 attempted batches of 12 actions; these were not model turns, and no time or output-token cap was enforced. Archive playback preserves those distinctions. Legacy `/experiments.html?run=…` links redirect to the new viewer.
 
@@ -89,11 +89,12 @@ The default canvas is 1000 × 1200 pixels with a plain paper-colored background.
 
 - Standard runs and the developer studio default to **24 cut fragments** and **120 successful actions**. Other model runs use their selected budget.
 - New runs and canvases allow simple polygons with 3–64 corners, at least 100 square source pixels, fully inside a source image. Existing projects, runs, and archives retain their saved vertex limits.
-- Polygon boundaries may touch, but their interiors cannot overlap on the same source.
+- Source-cut boundaries may touch, but their interiors cannot overlap on the same source.
 - Cutting consumes material even while the fragment is in the tray. Removing a piece does not make the original source region available again.
-- Uniform scale: 15–300%. Piece centers stay on the canvas, but edges may extend beyond it and are clipped by the final canvas.
-- Each successful cut, placement, transform, reorder, removal, or description counts as one action. A rejected action changes nothing. A submitted batch either succeeds completely or changes nothing.
-- A model must receive the latest rendered canvas before confirming completion. Edits submitted with a finish request stay accepted, then the model gets another look and may confirm or revise. This uses its existing turn budget; exhausting that budget leaves partial work. New run records use policy version 2, while earlier records preserve their original policy.
+- An agent may trim an existing piece into a new, strictly smaller fragment. Its retained image stays in place, while the old piece becomes unusable and the remainder is permanently discarded. Original source coordinates and the same polygon rules apply. The child records its parent; both remain in the history and count toward the fragment limit.
+- Uniform scale: 15–300%. Explicit piece centers stay on the canvas, but edges may extend beyond it and are clipped by the final canvas. A trim may derive an off-canvas center to preserve the retained pixels' position.
+- Each successful cut, trim, placement, transform, reorder, removal, or description counts as one action. A rejected action changes nothing. A submitted batch either succeeds completely or changes nothing.
+- A model must receive the latest rendered canvas before confirming completion. Edits submitted with a finish request stay accepted, then the model gets another look and may confirm or revise. This uses its existing turn budget; exhausting that budget leaves partial work. New run records use policy version 3, adding trims to version 2's final-review policy; earlier records preserve their original policy.
 
 This version is an **exploration environment**, not a validated creativity leaderboard. In the manual studio, undo restores the earlier action budget; editing after undo replaces the abandoned continuation. Sources may be added during a studio session, and imports may specify bounded alternate rules. Recorded model runs instead freeze their materials and rules, keep rejected attempts, and have no undo command. A comparative study still needs repeated runs, a frozen evaluation protocol and blind judgments. Observable actions and explicit decision notes do not reveal private internal reasoning.
 

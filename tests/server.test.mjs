@@ -4,7 +4,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { startServer } from '../server.mjs';
-import { getSharp } from '../lib/render.mjs';
+import { getSharp, renderPNG } from '../lib/render.mjs';
 
 async function source() {
   const bytes = await getSharp()({ create: { width: 80, height: 80, channels: 3, background: '#ff0000' } }).png().toBuffer();
@@ -74,6 +74,41 @@ test('source uploads preserve history and invalid project imports cannot replace
   assert.equal(result.status, 200, JSON.stringify(result.data));
   assert.equal(result.data.state.pieces[0].visible, true);
   assert.equal(result.data.cursor, 2);
+});
+
+test('trim history replays through HTTP and portable imports without restoring discarded material', async t => {
+  const { request } = await fixture(t);
+  const help = (await request('/api/help')).data;
+  assert.ok(help.actions.some(action => action.type === 'trim' && action.newPieceId));
+  assert.equal((await request('/api/actions', { actions: [cut, place] })).status, 200);
+  const trim = { type: 'trim', pieceId: 'fragment', newPieceId: 'refined', polygon: [[10, 0], [30, 0], [30, 30], [10, 30]] };
+  assert.equal((await request('/api/actions', { actions: [trim, place] })).status, 400);
+  assert.equal((await request('/api/state')).data.cursor, 2);
+  const trimmed = await request('/api/actions', trim);
+  assert.equal(trimmed.status, 200, JSON.stringify(trimmed.data));
+  assert.equal(trimmed.data.cursor, 3);
+  const [parent, child] = trimmed.data.state.pieces;
+  assert.equal(parent.visible, false);
+  assert.equal(parent.supersededBy, child.id);
+  assert.equal(child.parentPieceId, parent.id);
+  assert.equal(child.visible, true);
+  assert.equal((await request('/api/state?step=2')).data.state.pieces[0].visible, true);
+  assert.equal((await request('/api/state?step=2')).data.state.pieces.length, 1);
+  const discardedCut = { ...cut, pieceId: 'discarded', polygon: [[0, 0], [10, 0], [10, 30], [0, 30]] };
+  assert.equal((await request('/api/actions', discardedCut)).status, 400);
+  const exported = (await request('/api/project')).data;
+  await request('/api/reset', {});
+  const imported = await request('/api/project', exported);
+  assert.equal(imported.status, 200, JSON.stringify(imported.data));
+  assert.equal(imported.data.cursor, 3);
+  assert.deepEqual(imported.data.state.pieces, trimmed.data.state.pieces);
+  assert.deepEqual(await renderPNG(imported.data.state), await renderPNG(trimmed.data.state));
+  assert.equal((await request('/api/actions', place)).status, 400);
+  assert.equal((await request('/api/actions', discardedCut)).status, 400);
+  const tampered = structuredClone(exported);
+  tampered.actions[2].action.polygon = [[0, 0], [40, 0], [40, 30], [0, 30]];
+  assert.equal((await request('/api/project', tampered)).status, 400);
+  assert.deepEqual((await request('/api/state')).data.state, imported.data.state);
 });
 
 test('the image API exports original pixels and handles invalid image input', async t => {
