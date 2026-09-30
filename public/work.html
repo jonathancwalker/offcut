@@ -39,7 +39,15 @@
           <p class="canvas-message" id="canvas-message" hidden></p>
         </div>
         <div class="playback">
-          <div class="playback-top"><div class="playback-buttons"><button class="icon-button" id="previous-step" type="button" aria-label="Previous action" title="Previous action">‹</button><button class="play-button" id="play-work" type="button">▶ Play</button><button class="icon-button" id="next-step" type="button" aria-label="Next action" title="Next action">›</button></div><span id="playback-position" class="playback-position"></span><button class="text-button" id="final-step" type="button">Final</button></div>
+          <div class="playback-top">
+            <div class="playback-buttons"><button class="icon-button" id="previous-step" type="button" aria-label="Previous action" title="Previous action">‹</button><button class="play-button" id="play-work" type="button">▶ Play</button><button class="icon-button" id="next-step" type="button" aria-label="Next action" title="Next action">›</button></div>
+            <span id="playback-position" class="playback-position"></span>
+            <div class="playback-options">
+              <label class="sr-only" for="playback-speed">Playback speed</label>
+              <select id="playback-speed" title="Playback speed"><option value="0.5">0.5×</option><option value="1">1×</option><option value="2" selected>2×</option><option value="4">4×</option><option value="8">8×</option></select>
+              <button class="text-button" id="final-step" type="button">Final</button>
+            </div>
+          </div>
           <label class="sr-only" for="work-timeline">Playback action</label><input id="work-timeline" type="range" min="0" max="0" value="0" disabled>
           <div class="playback-caption"><span id="action-caption">Blank canvas</span><span id="canvas-size"></span></div>
         </div>
