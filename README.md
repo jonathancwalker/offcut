@@ -41,7 +41,13 @@ The local source inventory currently holds at most 24 images and 24 MB of normal
 
 Artwork is read-only; playback never changes the record. Failed/stopped/limited runs retain their saved output and honest outcome labels. The folded work record includes the task and limits actually used, omitting information that was not recorded for older archives.
 
+The Work viewer plays at 2× by default. Choose 0.5×, 1×, 2×, 4×, or 8× beside the playback controls; changes apply while playing and the browser remembers your preference. Each frame finishes loading before playback advances, so image-rendering time can limit the fastest rates.
+
 The two archived works are read from `experiments/001/final-project.json` and `experiments/002/final-project.json`. Exact model identifiers were not captured. A001 includes five human seed actions; A002 began with a blank canvas and fresh agent context. Archive playback preserves those distinctions. Legacy `/experiments.html?run=…` links redirect to the new viewer.
+
+In Work, choose **Download → Playback GIF** to share the recorded making of an archived or finished run, including partial saved work. The GIF loops from a blank canvas through every action up to the saved cursor, including seed actions, with 650 ms per step and a 2.5-second final hold. It exports the saved sequence regardless of the current playback position. GIF uses a reduced color palette; **Final image** keeps the full-resolution PNG.
+
+GIF export runs locally using the existing renderer and Sharp, without model calls, API keys, uploads, or changes to projects, source images, or action records. The longest edge is at most 640 pixels, reduced further for long histories to keep the RGB timeline within 64 MiB; aspect ratio is retained to whole pixels. Source images used in the saved sequence may total up to 32 megapixels decoded (20 megapixels per image). Source decoding and encoding need additional memory beyond the timeline. One export runs at a time in a separate process, with a two-minute deadline. Use **Cancel GIF export** in the download menu to stop it, or retry from the same menu after an error. The GET endpoints `/api/archives/:id/render.gif` and `/api/runs/:id/render.gif` accept no query options and return an attachment; running works return 409.
 
 Runs save under `.data/runs/`. Each has frozen sources and their hashes, a specification, append-only events, image observations, model outputs, and replayable accepted actions. Past source/canvas observations are stored by hash; a full run export includes their bytes. Model calls use native image inputs with images resized to at most 1536 pixels on their longest edge. Cut coordinates remain in original source pixels. Prior textual context is retained; past image attachments are not resent.
 
@@ -110,6 +116,7 @@ The browser workflow was also exercised for cutting, dragging, transforms, prove
 public/             Library, run setup, observer viewer, developer studio, local assets
 lib/engine.mjs      Pure state transitions and geometry validation
 lib/render.mjs      Source-preserving SVG and PNG rendering
+lib/gif.mjs         Bounded playback GIF rendering and cancellable export process
 lib/runs.mjs        Isolated model loop, observations, durable events and recovery
 lib/archives.mjs    Read-only replay of the two early saved works
 lib/providers.mjs   Private provider connections and OpenAI Responses adapter
