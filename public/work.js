@@ -1,6 +1,8 @@
 import { createState, applyAction, polygonBounds, polygonArea } from '/engine.mjs';
+import { createPieceHighlight, outlineForAction } from '/work-highlight.mjs';
 
 const $ = id => document.getElementById(id);
+const pieceHighlight = createPieceHighlight($('work-stage'), $('work-change-outline'));
 const SVG = 'http://www.w3.org/2000/svg';
 const runId = new URL(location.href).searchParams.get('run');
 const isArchive = Boolean(runId?.startsWith('archive-'));
@@ -223,6 +225,9 @@ function renderPlayback() {
 }
 function setStep(value) {
   state.step = Math.max(0,Math.min(state.frames.length - 1,Number(value) || 0));
+  const step = state.step;
+  const final = step === state.frames.length - 1;
+  if (final) pieceHighlight.clear();
   renderPlayback();
   const version = ++state.imageVersion;
   const url = `${base}/render.png?step=${state.step}&revision=${encodeURIComponent(state.run.revision || state.run.updatedAt || '')}`;
@@ -232,10 +237,18 @@ function setStep(value) {
   $('canvas-message').hidden = true;
   const image = new Image();
   state.imageReady = new Promise(resolve => {
-    image.onload = () => {
+    image.onload = async () => {
+      try { await image.decode(); }
+      catch { return image.onerror(); }
       if (version !== state.imageVersion) return resolve(false);
-      $('work-canvas').src = url;
-      $('work-canvas').alt = `${identity}, ${state.step === 0 ? 'blank canvas' : `after action ${state.step}`}`;
+      image.id = 'work-canvas'; image.className = 'work-canvas'; image.draggable = false;
+      image.alt = `${identity}, ${step === 0 ? 'blank canvas' : `after action ${step}`}`;
+      // Keep the current frame visible until its replacement is ready to paint.
+      $('work-canvas').replaceWith(image);
+      // This destination action's outline is committed with the decoded frame,
+      // including backward seeks. Removal, text, and plain final stay unmarked.
+      const frame = state.frames[step];
+      pieceHighlight.show(final ? null : outlineForAction(state.frames[step - 1], frame, state.project.actions[step - 1]?.action), frame.canvas, step);
       $('work-stage').classList.remove('is-loading');
       $('work-stage').setAttribute('aria-busy','false');
       resolve(true);
@@ -243,6 +256,7 @@ function setStep(value) {
     image.onerror = () => {
       if (version !== state.imageVersion) return resolve(false);
       stopPlayback();
+      pieceHighlight.clear();
       $('work-stage').classList.remove('is-loading');
       $('work-stage').classList.add('has-error');
       $('work-stage').setAttribute('aria-busy','false');
@@ -412,8 +426,11 @@ $('decision-notes').addEventListener('toggle',() => { if ($('decision-notes').op
 $('download-menu').addEventListener('click',event => { if (event.target.closest('a')) $('download-menu').open = false; });
 document.addEventListener('click',event => { if (!$('download-menu').contains(event.target)) $('download-menu').open = false; });
 document.addEventListener('keydown',event => { if (event.key === 'Escape') $('download-menu').open = false; });
-document.addEventListener('visibilitychange',() => { if (document.hidden) stopPlayback(); else if (!state.project) refresh(); });
-window.addEventListener('pagehide',() => { clearTimeout(state.pollTimer); stopPlayback(); });
+document.addEventListener('visibilitychange',() => { if (document.hidden) { stopPlayback(); pieceHighlight.clear(); } else if (!state.project) refresh(); });
+window.addEventListener('pagehide',() => { clearTimeout(state.pollTimer); stopPlayback(); state.imageVersion++; pieceHighlight.clear(); });
+// Back/forward cache can suspend a seek before its decoded frame is committed.
+// Restore the selected action instead of keeping that invalidated load pending.
+window.addEventListener('pageshow',event => { if (event.persisted && state.project) setStep(state.step); });
 if (runId) refresh();
 else {
   $('pending-work').classList.add('is-unavailable');
