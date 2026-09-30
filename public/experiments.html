@@ -3,76 +3,69 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#f5f4ee">
+  <meta name="theme-color" content="#faf9f6">
   <title>Experiments — Offcut</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cpath fill='%23294f3c' d='M2 2h17v17H2zm19 0h17v17H21zM2 21h17v17H2zm19 0h17L21 38z'/%3E%3C/svg%3E">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cpath fill='%23232522' d='M2 2h17v17H2zm19 0h17v17H21zM2 21h17v17H2zm19 0h17L21 38z'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="/style.css">
   <link rel="stylesheet" href="/experiments.css">
 </head>
 <body class="experiment-page">
   <header class="app-header">
     <a class="brand" href="/" aria-label="Offcut studio"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>offcut<span class="brand-period">.</span></a>
-    <span class="brand-description">A studio for constrained imagination</span>
-    <nav class="header-actions" aria-label="Main navigation"><a class="quiet-button" href="/">Studio</a><a class="nav-current" href="/experiments.html" aria-current="page">Experiments <span aria-hidden="true">↗</span></a></nav>
+    <nav class="app-nav" aria-label="Main navigation"><a class="nav-link" href="/">Studio</a><a class="nav-link active" href="/experiments.html" aria-current="page">Experiments</a></nav>
+    <div class="header-actions"><span class="local-indicator">Local workspace</span></div>
   </header>
   <main class="experiment-main">
-    <div class="experiment-heading"><div><p class="eyebrow">SAME MATERIALS. DIFFERENT POSSIBILITIES.</p><h1>A little room for discovery.</h1><p>Give a model your scraps. Watch what it makes of them.</p></div><span class="local-label"><i aria-hidden="true"></i> Your local experiment studio</span></div>
-    <div id="page-error" class="page-error" role="alert" hidden><p id="page-error-message"></p><button id="retry-load" class="text-button">Try again ↗</button></div>
-    <div class="experiment-layout">
-      <aside class="experiment-setup" aria-label="Set up an experiment">
-        <section class="setup-section materials-section">
-          <div class="section-heading"><h2><span>01</span> The materials</h2><a href="/" class="text-button">Edit in studio ↗</a></div>
-          <div id="experiment-sources" class="experiment-sources" aria-label="Source images"><p class="field-help">Loading your materials…</p></div>
-          <p id="materials-summary" class="field-help">Each run starts with a blank canvas and a saved copy of these sources.</p>
-        </section>
-        <section class="setup-section connection-section">
-          <div class="section-heading"><h2><span>02</span> The model</h2><span id="provider-status" class="provider-status">Checking…</span></div>
-          <details id="connection-settings" open>
-            <summary>OpenAI connection <span aria-hidden="true">＋</span></summary>
-            <form id="key-form" class="connection-form">
-              <label for="api-key">API key</label><div class="key-entry"><input id="api-key" type="password" autocomplete="off" spellcheck="false" placeholder="Paste your API key" aria-describedby="key-help"><button id="save-key" type="submit" class="secondary-button">Connect</button></div>
-              <p id="key-help" class="field-help">Kept in server memory for this session. Never saved in a project or in browser storage.</p>
-            </form>
-            <div class="connection-tools"><button id="test-connection" class="text-button" disabled>Test connection</button><button id="forget-key" class="text-button" hidden>Forget session key</button></div>
-            <p id="connection-message" class="field-help" role="status"></p>
-          </details>
-        </section>
-        <form id="run-form">
-          <div class="model-field"><label for="model">Model ID</label><input id="model" name="model" type="text" list="available-models" required maxlength="160" autocomplete="off" placeholder="Enter a vision-capable model ID" aria-describedby="model-help"><datalist id="available-models"></datalist><p id="model-help" class="field-help">Choose a model that accepts images and returns text. Testing lists available models; it does not verify image support.</p></div>
-          <section class="setup-section rules-section-experiment">
-            <div class="section-heading"><h2><span>03</span> The invitation</h2><span class="small-note">NO TARGET IMAGE</span></div>
-            <label for="prompt" class="sr-only">Instructions for the model</label><textarea id="prompt" name="prompt" rows="5" required maxlength="12000">Create an original collage from the provided source images. Explore what these materials could become together. There is no target image. Give the work a title and a short artist statement when you are finished.</textarea>
-            <details class="run-limits"><summary>Limits &amp; stopping rules <span aria-hidden="true">＋</span></summary><div class="limits-grid">
-              <label for="max-turns">Model turns<input id="max-turns" name="maxTurns" type="number" min="1" max="40" value="12" required></label>
-              <label for="max-actions">Accepted actions<input id="max-actions" name="maxActions" type="number" min="1" max="240" value="120" required></label>
-              <label for="max-pieces">Fragments<input id="max-pieces" name="maxPieces" type="number" min="1" max="64" value="24" required></label>
-              <label for="max-minutes">Time · minutes<input id="max-minutes" name="maxMinutes" type="number" min="1" max="60" value="10" required></label>
-              <label for="max-output-tokens" class="full-field">Maximum output tokens per turn<input id="max-output-tokens" name="maxOutputTokens" type="number" min="256" max="16384" step="1" value="4096" required></label>
-            </div><p class="field-help">The run stops at its turn, action or time limit. Fragments and output per turn are also capped.</p></details>
-          </section>
-          <div class="launch-section"><p class="billing-note">Runs use your API account and may incur charges. Dollar estimates are not available yet.</p><button id="launch-run" class="primary-button launch-run" type="submit" disabled>Start an experiment <span aria-hidden="true">↗</span></button><p id="launch-help" class="field-help" role="status">Checking your connection and materials…</p><p id="launch-error" class="form-error" role="alert" hidden></p></div>
-        </form>
-      </aside>
-      <section class="experiment-workspace" aria-label="Experiments and playback">
-        <div class="runs-heading"><div><p class="eyebrow">THE COLLECTION</p><h2>Your experiments <span id="run-count">—</span></h2></div><button id="refresh-runs" class="text-button">Refresh ↻</button></div>
-        <div id="run-list" class="run-list" aria-label="Choose an experiment"><p class="field-help">Loading saved runs…</p></div>
-        <div id="empty-experiments" class="empty-experiments" hidden><div class="experiment-paper" aria-hidden="true"><i></i><i></i><i></i></div><p class="eyebrow">AN INVITATION TO REARRANGE</p><h2>What will it see<br>in the same scraps?</h2><p>Connect a model and start your first experiment.<br>Its canvas, choices and every accepted action will appear here.</p><span class="empty-caption">Original material · A blank canvas · A new point of view</span></div>
-        <article id="selected-run" class="selected-run" hidden>
-          <div class="selected-heading"><div><p id="selected-model" class="eyebrow"></p><h2 id="selected-title">Untitled experiment</h2></div><span id="selected-status" class="run-status"></span></div>
-          <div class="run-meta"><span id="selected-date"></span><button id="stop-run" class="text-button" hidden>Stop run</button></div>
-          <p id="run-notice" class="run-notice" role="status" hidden></p>
-          <div class="run-view">
-            <div class="run-artwork"><div class="experiment-canvas"><img id="run-canvas" alt="Collage from the selected experiment"><p id="canvas-error" class="field-help" hidden>The canvas could not be loaded. Refresh to try again.</p></div>
-              <div class="experiment-replay"><div class="replay-heading"><h3>The making <span id="replay-count"></span></h3><button id="play-run" class="text-button" disabled>▶ Replay</button></div><input id="run-timeline" type="range" min="0" max="0" value="0" step="1" aria-label="Accepted actions shown" disabled><div class="timeline-caption"><span id="replay-caption">Blank canvas</span><button id="show-latest" class="text-button" hidden>Latest ↗</button></div></div>
-              <div class="run-downloads"><a id="download-artwork" class="text-button" download="offcut.png">Image ↗</a><a id="download-project" class="text-button" download>Project ↗</a><a id="download-bundle" class="text-button" download>Full run record ↗</a></div>
-            </div>
-            <div class="run-record"><dl class="run-stats"><div><dt>Model turns</dt><dd id="stat-turns">—</dd></div><div><dt>Accepted actions</dt><dd id="stat-actions">—</dd></div><div><dt>Tokens used</dt><dd id="stat-tokens">—</dd></div><div><dt>Cost</dt><dd id="stat-cost">Not available</dd></div></dl><div class="activity-heading"><h3>Activity</h3><span id="activity-count"></span></div><p class="activity-description">Observable actions and model notes, recorded as the work develops.</p><div id="activity-list" class="activity-list" aria-label="Experiment activity"><p class="field-help">Waiting for the first model turn…</p></div><details class="run-spec"><summary>Experiment settings</summary><pre id="run-spec-text"></pre></details></div>
+    <div id="page-error" class="page-error" role="alert" hidden><p id="page-error-message"></p><button id="retry-load" class="text-button" type="button">Try again</button></div>
+    <section id="collection-view" aria-labelledby="collection-title">
+      <div class="collection-heading"><h1 id="collection-title">Experiments <span id="run-count">—</span></h1><button class="primary-button" data-open-setup type="button">New experiment</button></div>
+      <div id="collection-toolbar" class="collection-toolbar">
+        <label class="collection-search" for="run-search"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"></circle><path d="m12.5 12.5 4 4"></path></svg><span class="sr-only">Search experiments by title or model</span><input id="run-search" type="search" placeholder="Search experiments" autocomplete="off"></label>
+        <label class="status-filter" for="status-filter"><span class="sr-only">Filter by status</span><select id="status-filter"><option value="all">All statuses</option><option value="running">Running</option><option value="completed">Completed</option><option value="limit_reached">Limit reached</option><option value="stopped">Stopped</option><option value="failed">Failed</option><option value="interrupted">Interrupted</option></select></label>
+        <button id="refresh-runs" class="icon-button" type="button" aria-label="Refresh experiments" title="Refresh experiments"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16.2 7.5A6.5 6.5 0 1 0 16.5 11M16.5 3.5v4.5H12"></path></svg></button>
+      </div>
+      <div id="run-list" class="run-list" aria-label="Saved experiments"><p class="collection-loading" role="status">Loading experiments…</p></div>
+      <div id="empty-experiments" class="empty-experiments" hidden><p>No experiments yet.</p><button class="primary-button" data-open-setup type="button">New experiment</button></div>
+      <div id="no-matches" class="empty-experiments filter-empty" hidden><p>No matching experiments.</p><button id="clear-filters" class="text-button" type="button">Clear filters</button></div>
+      <div id="collection-pagination" class="collection-pagination" hidden><span id="visible-count" role="status"></span><button id="show-more-runs" class="secondary-button" type="button">Show more</button></div>
+    </section>
+    <article id="selected-run" class="selected-run" aria-labelledby="selected-title" hidden>
+      <div class="detail-navigation"><button id="back-to-collection" class="text-button back-button" type="button"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m11.5 5-5 5 5 5M7 10h10"></path></svg>Experiments</button><button class="secondary-button" data-open-setup type="button">New experiment</button></div>
+      <p id="run-loading" class="collection-loading" role="status">Loading experiment…</p>
+      <div id="run-detail" hidden>
+        <div class="selected-heading"><div><h1 id="selected-title" tabindex="-1">Untitled experiment</h1><p class="selected-byline"><span id="selected-model"></span><span id="selected-date"></span></p></div><div class="selected-controls"><span id="selected-status" class="run-status"></span><button id="stop-run" class="secondary-button" type="button" hidden>Stop run</button></div></div>
+        <p id="run-notice" class="run-notice" role="status" hidden></p>
+        <div class="run-view">
+          <div class="run-artwork">
+            <div class="experiment-canvas"><img id="run-canvas" alt="Collage from the selected experiment"><p id="canvas-error" class="field-help" hidden>Preview unavailable. Refresh to try again.</p></div>
+            <div class="experiment-replay"><div class="replay-heading"><button id="play-run" class="secondary-button" type="button" disabled>Play</button><span id="replay-caption">Blank canvas</span><button id="show-latest" class="text-button" type="button" hidden>Latest</button></div><label for="run-timeline" class="sr-only">Accepted actions shown</label><input id="run-timeline" type="range" min="0" max="0" value="0" step="1" disabled><span id="replay-count" class="sr-only"></span></div>
+            <div class="run-downloads"><span>Download</span><a id="download-artwork" class="text-button" download="offcut.png">Image</a><a id="download-project" class="text-button" download>Project</a><a id="download-bundle" class="text-button" download>Run record</a></div>
           </div>
-        </article>
-      </section>
-    </div>
-    <footer class="experiment-footer"><span>OFFCUT / EXPERIMENTS</span><p>Every fragment has an origin. Every composition has a history.</p></footer>
+          <aside class="run-record" aria-label="Experiment activity">
+            <dl class="run-stats"><div><dt>Turns</dt><dd id="stat-turns">—</dd></div><div><dt>Actions</dt><dd id="stat-actions">—</dd></div></dl>
+            <div class="activity-heading"><h2>Activity</h2><span id="activity-count"></span></div>
+            <div id="activity-list" class="activity-list"><p class="field-help">Waiting for the first turn…</p></div>
+            <details class="record-details"><summary>Usage</summary><dl class="usage-stats"><div><dt>Tokens</dt><dd id="stat-tokens">—</dd></div><div><dt>Cost</dt><dd id="stat-cost">Not available</dd></div></dl></details>
+            <details class="record-details"><summary>Settings &amp; sources</summary><pre id="run-spec-text"></pre></details>
+            <details id="raw-events" class="record-details"><summary>Technical log <span id="raw-event-count"></span></summary><div id="raw-event-list"></div></details>
+          </aside>
+        </div>
+      </div>
+    </article>
   </main>
+  <dialog id="setup-dialog" class="setup-dialog" aria-labelledby="setup-title">
+    <div class="setup-dialog-heading"><h2 id="setup-title" tabindex="-1">New experiment</h2><button id="close-setup" class="icon-button" type="button" aria-label="Close setup"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15"></path></svg></button></div>
+    <div class="setup-dialog-content">
+      <section class="setup-section materials-section"><div class="setup-section-heading"><h3>Materials <span id="materials-count"></span></h3><a href="/" class="text-button">Edit in studio</a></div><div id="experiment-sources" class="experiment-sources" aria-label="Source images"><p class="field-help">Loading materials…</p></div><p id="materials-summary" class="field-help">Saved with a new, blank canvas.</p></section>
+      <section class="setup-section connection-section"><div class="setup-section-heading"><h3>OpenAI</h3><span id="provider-status" class="provider-status">Checking…</span></div><details id="connection-settings" open><summary>Connection</summary><form id="key-form" class="connection-form"><label for="api-key">API key</label><div class="key-entry"><input id="api-key" type="password" autocomplete="off" spellcheck="false" placeholder="Paste API key" aria-describedby="key-help"><button id="save-key" type="submit" class="secondary-button">Connect</button></div><p id="key-help" class="field-help">Session only. Never saved to browser storage or exports.</p></form><div class="connection-tools"><button id="test-connection" class="text-button" type="button" disabled>Test connection</button><button id="forget-key" class="text-button" type="button" hidden>Forget key</button></div><p id="connection-message" class="field-help" role="status"></p></details></section>
+      <form id="run-form">
+        <div class="model-field"><label for="model">Model</label><input id="model" name="model" type="text" list="available-models" required maxlength="160" autocomplete="off" placeholder="Model ID" aria-describedby="model-help"><datalist id="available-models"></datalist><p id="model-help" class="field-help">Requires image input. Listed models aren’t checked for vision support.</p></div>
+        <div class="prompt-field"><label for="prompt">Prompt</label><textarea id="prompt" name="prompt" rows="4" required maxlength="12000">Create an original collage from the provided source images. Explore what these materials could become together. There is no target image. Give the work a title and a short artist statement when you are finished.</textarea></div>
+        <details class="run-limits"><summary>Limits</summary><div class="limits-grid"><label for="max-turns">Turns<input id="max-turns" name="maxTurns" type="number" min="1" max="40" value="12" required></label><label for="max-actions">Actions<input id="max-actions" name="maxActions" type="number" min="1" max="240" value="120" required></label><label for="max-pieces">Fragments<input id="max-pieces" name="maxPieces" type="number" min="1" max="64" value="24" required></label><label for="max-minutes">Minutes<input id="max-minutes" name="maxMinutes" type="number" min="1" max="60" value="10" required></label><label for="max-output-tokens" class="full-field">Output tokens per turn<input id="max-output-tokens" name="maxOutputTokens" type="number" min="256" max="16384" step="1" value="4096" required></label></div></details>
+      </form>
+    </div>
+    <div class="setup-dialog-footer"><p class="billing-note">Uses your API account. No dollar cap or cost estimate yet.</p><p id="launch-error" class="form-error" role="alert" hidden></p><button id="check-launch" class="text-button" type="button" hidden>Check for a started run</button><div class="launch-row"><p id="launch-help" class="field-help" role="status">Checking connection…</p><button id="launch-run" class="primary-button" type="submit" form="run-form" disabled>Start experiment</button></div></div>
+  </dialog>
   <script type="module" src="/experiments.js"></script>
 </body>
 </html>

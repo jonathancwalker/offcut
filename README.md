@@ -22,10 +22,10 @@ The app listens on this computer only. The manual studio works offline without a
 Open **Experiments** in the header, or **http://127.0.0.1:4317/experiments.html**.
 
 1. Prepare source images in the studio. The runner snapshots the current inventory and starts a separate blank canvas; your studio artwork stays intact.
-2. Connect an OpenAI API key. A key entered in the page stays in server memory until forgotten or the server restarts. Alternatively, start the server with `OPENAI_API_KEY` in its environment. Keys are not saved to browser storage, projects, or run records.
+2. Choose **New experiment** and connect an OpenAI API key. A key entered in the page stays in server memory until forgotten or the server restarts. Alternatively, start the server with `OPENAI_API_KEY` in its environment. Keys are not saved to browser storage, projects, or run records.
 3. Test the connection to list model IDs, then choose an image-capable model that supports the Responses API. The connection check verifies authentication only; listing a model does not verify its image capabilities.
 4. Set the creative brief and limits, then start. Watch the canvas and recorded activity; stop the run when needed. One experiment runs at a time.
-5. Replay accepted actions, inspect model notes and failures, and download the image, portable project or complete run record.
+5. Browse saved artwork by title, model, or status. Open a run to replay accepted actions, inspect model notes and failures, and download the image, portable project or complete run record.
 
 Runs save under `.data/runs/`. Each has frozen sources and their hashes, a specification, append-only events, image observations, model outputs, and replayable accepted actions. Past source/canvas observations are stored by hash; a full run export includes their bytes. Model calls use native image inputs with images resized to at most 1536 pixels on their longest edge. Cut coordinates remain in original source pixels. Prior textual context is retained; past image attachments are not resent.
 
@@ -36,12 +36,14 @@ The first adapter supports OpenAI. Additional providers, repeat queues, richer o
 ## The studio
 
 - Start with the three archival sources, or add PNG, JPEG, or WebP images.
+- Browse materials by name, filter used or unused images, and sort by name or added order. Thumbnails preserve the image’s framing and color; the info button shows dimensions and available credits, license, and source link.
 - Click a source and draw a rectangle or polygon. Polygon corners are added by clicking; close at the first corner, or choose **Cut & place**. Numeric rectangle coordinates provide a keyboard alternative.
 - Drag a fragment on the canvas. Select it to change its position, rotation, scale, or layer. Arrow keys nudge by one canvas pixel; Shift + arrow moves ten. Delete returns the selected piece to the tray.
-- **Find this piece in its source** highlights the exact cut boundary in the original image. Shaded source regions have been consumed.
+- **View source** highlights the exact cut boundary in the original image. Shaded source regions have been consumed.
+- Edit the statement in the sidebar, or use **Project menu → Canvas details** on any screen size.
 - Undo/redo with the toolbar or Command/Ctrl + Z and Command/Ctrl + Shift + Z.
-- Scrub or play **The making** to review earlier states. Replay never changes the live composition; return to live before editing.
-- Export a PNG, a self-contained SVG, or a portable project with its complete retained action history and source images. A saved project can be reopened through **Open a saved project**.
+- Scrub or play **Timeline** to review earlier states. Replay never changes the live composition; return to live before editing.
+- Export a PNG, a self-contained SVG, or a portable project with its complete retained action history and source images. A saved project can be reopened through **Project menu → Open project**.
 
 Work saves automatically to `.data/session.json` after every accepted mutation. Imported projects are reconstructed and validated before replacing the current work. If a saved session is corrupt, the server keeps a recovery copy in `.data/`.
 
@@ -60,7 +62,7 @@ This version is an **exploration environment**, not a validated creativity leade
 
 ## Agent access
 
-For the external-agent workflow, choose **Connect an agent** in the studio for a copyable prompt. This button does not start a model automatically. That external agent needs image-reading and local HTTP access on this computer. The integrated **Experiments** page instead calls OpenAI from the local server and applies commands locally; the remote model does not access localhost or the desktop.
+For the external-agent workflow, choose **Project menu → Agent access** in the studio for a copyable prompt. This button does not start a model automatically. That external agent needs image-reading and local HTTP access on this computer. The integrated **Experiments** page instead calls OpenAI from the local server and applies commands locally; the remote model does not access localhost or the desktop.
 
 Read [AGENT_PROTOCOL.md](./AGENT_PROTOCOL.md) for the action contract, or open `GET /api/help` for the machine-readable reference. Both manual and agent edits use the same authoritative engine. External agent edits appear in the browser automatically.
 
@@ -74,7 +76,7 @@ npm test
 
 Tests cover polygon validity and overlap, finite material, immutable state, limits, source metadata, renderer fidelity, layering, atomic action batches, undo/redo and replay, persistence, image input validation, portable imports, and local-request protection. Runner checks cover native image delivery, credential handling, isolation, invalid batches, cancellation, time/context limits, recovery and exact exported replay. Integration tests use simulated providers and bind temporary loopback ports, which need permission in a sandbox that blocks local servers.
 
-The browser workflow was also exercised for rectangle and polygon cutting, direct dragging, transforms, provenance inspection, undo/redo, and replay.
+The browser workflow was also exercised for cutting, dragging, transforms, provenance, undo/redo, replay, mobile controls, and keyboard focus. Collection checks use 24 mixed-format materials and 50 simulated run summaries, including search, filters, pagination, and network-error recovery.
 
 ## Project structure
 
