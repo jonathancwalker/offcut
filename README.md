@@ -29,6 +29,8 @@ The home page is the **Library**. It includes recorded model runs and the two ea
 
 The task and limits are fixed in this initial product flow: 24 fragments, 120 accepted actions, 12 model turns, 10 minutes, and 4,096 output tokens per turn. Artwork is read-only; playback never changes the record. Failed/stopped/limited runs retain their saved output and honest outcome labels.
 
+The Work viewer plays at 2× by default. Choose 0.5×, 1×, 2×, 4×, or 8× beside the playback controls; changes apply while playing and the browser remembers your preference. Each frame finishes loading before playback advances, so image-rendering time can limit the fastest rates.
+
 The two archived works are read from `experiments/001/final-project.json` and `experiments/002/final-project.json`. Exact model identifiers were not captured. A001 includes five human seed actions; A002 began with a blank canvas and fresh agent context. Archive playback preserves those distinctions. Legacy `/experiments.html?run=…` links redirect to the new viewer.
 
 Runs save under `.data/runs/`. Each has frozen sources and their hashes, a specification, append-only events, image observations, model outputs, and replayable accepted actions. Past source/canvas observations are stored by hash; a full run export includes their bytes. Model calls use native image inputs with images resized to at most 1536 pixels on their longest edge. Cut coordinates remain in original source pixels. Prior textual context is retained; past image attachments are not resent.
