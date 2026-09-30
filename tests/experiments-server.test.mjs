@@ -82,13 +82,24 @@ test('experiment API connects privately, preserves the studio and exports an exa
   assert.deepEqual(Buffer.from(await image.arrayBuffer()), await renderPNG(state));
   assert.equal((await fetch(`${base}/api/runs/${id}/render.png?step=0`)).status, 200);
   assert.equal((await fetch(`${base}/api/runs/${id}/render.png?step=4`)).status, 404);
+  const gif = await fetch(`${base}/api/runs/${id}/render.gif`);
+  assert.equal(gif.status, 200);
+  assert.equal(gif.headers.get('content-type'), 'image/gif');
+  assert.match(gif.headers.get('content-disposition'), new RegExp(`offcut-${id}-playback.gif`));
+  const metadata = await getSharp()(Buffer.from(await gif.arrayBuffer())).metadata();
+  assert.equal(metadata.pages, project.cursor + 1);
+  assert.deepEqual(metadata.delay, [650, 650, 650, 2500]);
+  assert.deepEqual((await request(`/api/runs/${id}/project`)).data, project);
+  assert.deepEqual((await request(`/api/runs/${id}/export`)).data, bundle);
+  assert.deepEqual((await request('/api/project')).data, before);
+  assert.equal(turns, 2, 'Export must not call a provider.');
   assert.equal((await request('/api/providers/openai', {}, 'DELETE')).data.configured, false);
 });
 
 test('one worker rejects concurrent launches and stop cancels the pending provider call', async t => {
   let started;
   const providerStarted = new Promise(resolve => { started = resolve; });
-  const { request } = await fixture(t, async (url, options) => {
+  const { request, base } = await fixture(t, async (url, options) => {
     started();
     return new Promise((resolve, reject) => {
       options.signal.addEventListener('abort', () => reject(options.signal.reason), { once: true });
@@ -97,9 +108,45 @@ test('one worker rejects concurrent launches and stop cancels the pending provid
   await request('/api/providers/openai', { apiKey: secret });
   const { data } = await request('/api/runs', spec);
   await providerStarted;
+  const runningGIF = await fetch(`${base}/api/runs/${data.run.id}/render.gif`);
+  assert.equal(runningGIF.status, 409);
+  assert.match((await runningGIF.json()).error, /once this work ends/);
   assert.equal((await request('/api/runs', spec)).status, 409);
   const stopped = await request(`/api/runs/${data.run.id}/stop`, {});
   assert.equal(stopped.data.run.status, 'stopped');
   assert.equal(stopped.data.run.acceptedActions, 0);
   assert.equal(stopped.data.run.usageIncomplete, true);
+  const partialGIF = await fetch(`${base}/api/runs/${data.run.id}/render.gif`);
+  assert.equal(partialGIF.status, 200);
+  const metadata = await getSharp()(Buffer.from(await partialGIF.arrayBuffer())).metadata();
+  assert.equal(metadata.pages || 1, 1);
+  assert.deepEqual(metadata.delay, [2500]);
+});
+
+test('a failed run exports its committed partial work without resuming model calls', async t => {
+  let turns = 0;
+  const { request, base } = await fixture(t, async () => {
+    if (++turns > 1) throw new Error('Simulated provider failure.');
+    const output = { decision_note: 'Save this fragment.', actions: [cut, place], done: false };
+    return Response.json({ output: [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify(output) }] }] });
+  });
+  await request('/api/providers/openai', { apiKey: secret });
+  const started = await request('/api/runs', spec);
+  const id = started.data.run.id;
+  const run = await finished(request, id);
+  assert.equal(run.status, 'failed');
+  const project = (await request(`/api/runs/${id}/project`)).data;
+  assert.equal(project.cursor, 2);
+  const before = (await request(`/api/runs/${id}/export`)).data;
+  const response = await fetch(`${base}/api/runs/${id}/render.gif`);
+  assert.equal(response.status, 200);
+  const bytes = Buffer.from(await response.arrayBuffer());
+  const metadata = await getSharp()(bytes).metadata();
+  assert.equal(metadata.pages, 3);
+  assert.deepEqual(metadata.delay, [650, 650, 2500]);
+  const first = await getSharp()(bytes, { page: 0 }).raw().toBuffer();
+  const final = await getSharp()(bytes, { page: 2 }).raw().toBuffer();
+  assert.notDeepEqual(final, first);
+  assert.deepEqual((await request(`/api/runs/${id}/export`)).data, before);
+  assert.equal(turns, 2);
 });

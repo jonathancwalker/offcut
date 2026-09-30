@@ -16,7 +16,7 @@
     <div class="header-actions">
       <details class="app-menu work-downloads" id="download-menu" hidden>
         <summary class="icon-button" aria-label="Download work" title="Download">↓</summary>
-        <div class="menu-items"><a id="download-image" download>Final image</a><a id="download-project" download>Project</a><a id="download-record" download>Full record</a></div>
+        <div class="menu-items"><a id="download-image" download>Final image</a><button id="download-gif" type="button">Playback GIF</button><button id="cancel-gif-export" type="button" hidden>Cancel GIF export</button><a id="download-project" download>Project</a><a id="download-record" download>Full record</a></div>
       </details>
     </div>
   </header>
@@ -25,6 +25,7 @@
       <div><a class="back-link" href="/">← Library</a><h1 id="work-identity">Work</h1><p class="work-provenance" id="work-provenance"></p></div>
       <span class="work-status" id="work-status" hidden></span>
     </header>
+    <p class="subtle" id="gif-export-status" role="status" hidden></p>
     <div class="work-error" id="work-error" role="alert" hidden><p id="error-message"></p><button class="text-button" id="retry-work" type="button">Try again</button></div>
     <section class="pending-work" id="pending-work" aria-labelledby="pending-title" aria-live="polite">
       <div class="pending-mark" aria-hidden="true"><i></i><i></i><i></i></div>
@@ -70,5 +71,6 @@
     <div class="material-dialog-body"><div class="material-origin" id="material-origin"></div><div class="material-detail"><div id="material-fragment" class="material-fragment" hidden></div><dl id="material-facts" class="work-facts"></dl></div></div>
   </dialog>
   <script type="module" src="/work.js"></script>
+  <script type="module" src="/work-export.js"></script>
 </body>
 </html>

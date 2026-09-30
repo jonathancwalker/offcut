@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createArchiveCatalog } from '../lib/archives.mjs';
-import { renderPNG } from '../lib/render.mjs';
+import { getSharp, renderPNG } from '../lib/render.mjs';
 import { startServer } from '../server.mjs';
 
 const archiveFile = number => new URL(`../experiments/${number}/final-project.json`, import.meta.url);
@@ -123,5 +123,46 @@ test('archive API is read-only, allowlisted, and validates replay queries', asyn
     const response = await fetch(`${base}/api/archives${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
     assert.equal(response.status, 405, path);
   }
+  for (const query of ['step=0', 'step=-1', 'step=', 'step=1&step=2', 'width=5000', 'speed=2', 'unknown=1']) {
+    const response = await fetch(`${base}/api/archives/archive-001/render.gif?${query}`);
+    assert.equal(response.status, 400, query);
+    assert.match((await response.json()).error, /does not accept query options/);
+  }
+  assert.equal((await fetch(`${base}/api/archives/archive-999/render.gif`)).status, 404);
+  assert.equal((await fetch(`${base}/api/runs/missing/render.gif`)).status, 404);
+  assert.equal((await fetch(`${base}/api/archives/archive-001/render.gif`, { method: 'POST' })).status, 405);
+  assert.equal((await fetch(`${base}/api/runs/missing/render.gif`, { method: 'POST' })).status, 405);
+  assert.equal((await fetch(`${base}/api/archives/archive-001/render.gif`, { headers: { Origin: 'https://external.invalid' } })).status, 403);
   assert.deepEqual(app.getProject(), before);
+});
+
+test('both archived works export every recorded action without changing their saved data', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'offcut-archive-gif-'));
+  const app = await startServer({ port: 0, dataDir: directory, persist: false, initialSources: [] });
+  const base = `http://127.0.0.1:${app.server.address().port}`;
+  t.after(async () => { await app.close(); await rm(directory, { recursive: true, force: true }); });
+  const studio = app.getProject();
+  for (const number of ['001', '002']) {
+    const before = await readFile(archiveFile(number));
+    const project = JSON.parse(before);
+    const response = await fetch(`${base}/api/archives/archive-${number}/render.gif`);
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('content-type'), 'image/gif');
+    assert.match(response.headers.get('content-disposition'), new RegExp(`offcut-archive-${number}-playback.gif`));
+    const bytes = Buffer.from(await response.arrayBuffer());
+    assert.equal(Number(response.headers.get('content-length')), bytes.length);
+    const metadata = await getSharp()(bytes).metadata();
+    assert.equal(metadata.pages, project.cursor + 1);
+    assert.equal(metadata.width, 533);
+    assert.equal(metadata.height, 640);
+    assert.equal(metadata.loop, 0);
+    assert.deepEqual(metadata.delay, [...Array(project.cursor).fill(650), 2500]);
+    const blank = await getSharp()(bytes, { page: 0 }).removeAlpha().raw().toBuffer();
+    assert.ok(blank.every((value, index) => Math.abs(value - blank[index % 3]) <= 1));
+    const last = await getSharp()(bytes, { page: project.cursor }).removeAlpha().raw().toBuffer();
+    assert.notDeepEqual(last, blank);
+    assert.deepEqual(await readFile(archiveFile(number)), before);
+    assert.deepEqual(await (await fetch(`${base}/api/archives/archive-${number}/project`)).json(), project);
+  }
+  assert.deepEqual(app.getProject(), studio);
 });
