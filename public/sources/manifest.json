@@ -28,5 +28,185 @@
     "credit": "NASA / Apollo 8 (1968)",
     "url": "https://science.nasa.gov/resource/the-rising-earth-as-seen-by-apollo-8/",
     "license": "U.S. government work; NASA media usage guidelines"
+  },
+  {
+    "id": "nature-flamingo",
+    "name": "American Flamingo",
+    "file": "curated/nature-flamingo.jpg",
+    "width": 629,
+    "height": 900,
+    "credit": "John James Audubon, American Flamingo, The Birds of America, plate 431 (1827–1838). University of Pittsburgh / Wikimedia Commons.",
+    "url": "https://commons.wikimedia.org/wiki/File:431_American_Flamingo.jpg",
+    "license": "Public domain"
+  },
+  {
+    "id": "graphic-moulin-rouge",
+    "name": "Moulin Rouge poster",
+    "file": "curated/graphic-moulin-rouge.jpg",
+    "width": 555,
+    "height": 900,
+    "credit": "Henri de Toulouse-Lautrec, French, 1864-1901. Moulin Rouge, La Goulue, 1891. Art Institute of Chicago; Mr. and Mrs. Carter H. Harrison Collection. Digital image courtesy of the Art Institute of Chicago.",
+    "url": "https://www.artic.edu/artworks/82287",
+    "license": "CC0 1.0 (public domain)"
+  },
+  {
+    "id": "archive-douglass",
+    "name": "Frederick Douglass · 1870",
+    "file": "curated/archive-douglass.jpg",
+    "width": 584,
+    "height": 900,
+    "credit": "Schreiber, George Francis, 1803-1892 / Library of Congress",
+    "url": "https://www.loc.gov/pictures/item/2004671911/",
+    "license": "No known restrictions on publication"
+  },
+  {
+    "id": "nature-sea-anemones",
+    "name": "Sea Anemones",
+    "file": "curated/nature-sea-anemones.jpg",
+    "width": 642,
+    "height": 900,
+    "credit": "Ernst Haeckel, Actiniae, Kunstformen der Natur, plate 49 (1904). Wikimedia Commons.",
+    "url": "https://commons.wikimedia.org/wiki/File:Haeckel_Actiniae.jpg",
+    "license": "Public domain"
+  },
+  {
+    "id": "graphic-cray",
+    "name": "Cray textile",
+    "file": "curated/graphic-cray.jpg",
+    "width": 359,
+    "height": 900,
+    "credit": "Designed by William Morris (English, 1834–1896), Produced by Morris & Co., London (English, 1875–1940), Merton Abbey, London (English, 1881–1940). Cray, Design 1884, made 1884–1917. Art Institute of Chicago; Gift of Mrs. Charles F. Batchelder. Digital image courtesy of the Art Institute of Chicago.",
+    "url": "https://www.artic.edu/artworks/47661",
+    "license": "CC0 1.0 (public domain)"
+  },
+  {
+    "id": "archive-venice",
+    "name": "Venice · c. 1890",
+    "file": "curated/archive-venice.jpg",
+    "width": 673,
+    "height": 900,
+    "credit": "Creator not recorded / Library of Congress",
+    "url": "https://www.loc.gov/pictures/item/2001701038/",
+    "license": "No known restrictions on reproduction"
+  },
+  {
+    "id": "nature-jewel-beetles",
+    "name": "Jewel Beetles & Canna",
+    "file": "curated/nature-jewel-beetles.jpg",
+    "width": 703,
+    "height": 900,
+    "credit": "Edward Donovan, Natural history of the insects of China, plate 7 (1838). North Carolina State University Libraries / Biodiversity Heritage Library / Wikimedia Commons.",
+    "url": "https://commons.wikimedia.org/wiki/File:Donovan_-_Insects_of_China,_1838_-_pl_07.jpg",
+    "license": "Public domain"
+  },
+  {
+    "id": "graphic-clockwork",
+    "name": "Clockwork gears",
+    "file": "curated/graphic-clockwork.jpg",
+    "width": 665,
+    "height": 900,
+    "credit": "Diderot and d’Alembert, Encyclopédie, Recueil de Planches, volume 3. Scan credited to Gallica; Wikimedia Commons file Encyclopedie_volume_3-350.png.",
+    "url": "https://commons.wikimedia.org/wiki/File:Encyclopedie_volume_3-350.png",
+    "license": "Public domain (PD-old-100-expired)"
+  },
+  {
+    "id": "archive-airship",
+    "name": "Boarding an airship · 1915–25",
+    "file": "curated/archive-airship.jpg",
+    "width": 900,
+    "height": 662,
+    "credit": "Detroit Publishing Co. / Library of Congress",
+    "url": "https://www.loc.gov/pictures/item/2016816903/",
+    "license": "No known restrictions on publication"
+  },
+  {
+    "id": "nature-red-mullet",
+    "name": "Red Mullet",
+    "file": "curated/nature-red-mullet.jpg",
+    "width": 900,
+    "height": 532,
+    "credit": "Georges Cuvier and Achille Valenciennes, Histoire naturelle des poissons, plate 70 (1828–1849). Biodiversity Heritage Library / Wikimedia Commons.",
+    "url": "https://commons.wikimedia.org/wiki/File:Histoire_naturelle_des_poissons_(Pl._70)_(7949959338).jpg",
+    "license": "Public domain"
+  },
+  {
+    "id": "graphic-chicago-map",
+    "name": "Chicago growth map",
+    "file": "curated/graphic-chicago-map.jpg",
+    "width": 707,
+    "height": 900,
+    "credit": "Daniel Hudson Burnham (American, 1846-1912), Edward Herbert Bennett (American, born England, 1874-1954). Plan of Chicago, Chicago, Illinois, Diagram Showing City Growth, 1909. Art Institute of Chicago; On permanent loan to The Art Institute of Chicago from the City of Chicago. Digital image courtesy of the Art Institute of Chicago.",
+    "url": "https://www.artic.edu/artworks/196347",
+    "license": "CC0 1.0 (public domain)"
+  },
+  {
+    "id": "archive-still-life",
+    "name": "Fruit & cantaloupe · c. 1880",
+    "file": "curated/archive-still-life.jpg",
+    "width": 900,
+    "height": 692,
+    "credit": "William Mason Brown / The Cleveland Museum of Art, Andrew R. and Martha Holden Jennings Fund",
+    "url": "https://clevelandart.org/art/1969.20",
+    "license": "CC0 1.0"
+  },
+  {
+    "id": "nature-fungi",
+    "name": "Fungi",
+    "file": "curated/nature-fungi.jpg",
+    "width": 635,
+    "height": 900,
+    "credit": "Ernst Haeckel, Basimycetes, Kunstformen der Natur, plate 63 (1904). Wikimedia Commons.",
+    "url": "https://commons.wikimedia.org/wiki/File:Haeckel_Basimycetes.jpg",
+    "license": "Public domain"
+  },
+  {
+    "id": "graphic-wall-stencil",
+    "name": "Opera-house stencil design",
+    "file": "curated/graphic-wall-stencil.jpg",
+    "width": 661,
+    "height": 900,
+    "credit": "Peter Bonnett Wight, American, 1838–1925. Ottawa Opera House, Ottawa, Illinois, Wall Stencil Design, c. 1875. Art Institute of Chicago; Gift of Peter Bonnett Wight. Digital image courtesy of the Art Institute of Chicago.",
+    "url": "https://www.artic.edu/artworks/154879",
+    "license": "CC0 1.0 (public domain)"
+  },
+  {
+    "id": "archive-bridge",
+    "name": "Brooklyn Bridge · 1901",
+    "file": "curated/archive-bridge.jpg",
+    "width": 900,
+    "height": 464,
+    "credit": "Underwood & Underwood. / Library of Congress",
+    "url": "https://www.loc.gov/pictures/item/2017649330/",
+    "license": "No known restrictions on publication"
+  },
+  {
+    "id": "nature-shells",
+    "name": "Shells",
+    "file": "curated/nature-shells.jpg",
+    "width": 900,
+    "height": 731,
+    "credit": "John Hill; B. Cole, engraver. Plate 8: Shell Fish (Series 2) (1752). Courtesy of Science History Institute.",
+    "url": "https://digital.sciencehistory.org/works/a6l3r5f",
+    "license": "Public domain"
+  },
+  {
+    "id": "graphic-weaving-theory",
+    "name": "Weaving manual title page",
+    "file": "curated/graphic-weaving-theory.jpg",
+    "width": 731,
+    "height": 900,
+    "credit": "P. Audibert (French, active c. 1869 ) and A. Seris (French, active c. 1869), France. Cours de Théorie pour la Tissage, 1869. Art Institute of Chicago; Gift of Mrs. Chauncey B. Borland. Digital image courtesy of the Art Institute of Chicago.",
+    "url": "https://www.artic.edu/artworks/63750",
+    "license": "CC0 1.0 (public domain)"
+  },
+  {
+    "id": "archive-surf",
+    "name": "A crowd in the surf · 1903",
+    "file": "curated/archive-surf.jpg",
+    "width": 900,
+    "height": 474,
+    "credit": "Rau, William Herman, 1855-1920 / Library of Congress",
+    "url": "https://www.loc.gov/pictures/item/2003688949/",
+    "license": "No known restrictions on publication"
   }
 ]

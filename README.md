@@ -49,11 +49,19 @@ Limits cover model turns, accepted actions, fragments, output tokens per request
 
 The first adapter supports OpenAI. Additional providers, repeat queues, richer observation playback, public publishing and measurement computation remain on the roadmap. Tests use simulated providers; a live paid inference run is a separate validation step.
 
+## Bundled source collection
+
+The app now includes **21 source images**: the original three plus 18 natural-history plates, archival photographs, a portrait, a still life, maps, lettering, textile designs, and mechanical diagrams. New installations load them automatically. New run still starts with just the original three selected, so additional material is an explicit choice.
+
+For an existing installation, start Offcut and run `npm run sources:import`. This adds missing bundled images through the source API without clearing artwork or history. It compares image hashes, so it can be run again after interruption without re-adding confirmed images. The current collection limit remains 24 images / 24 MB; the bundled collection uses about 20 MB after PNG normalization.
+
+Every added image has a collection link, credit, and recorded reuse status. [Source credits](public/sources/CREDITS.md) and the [curated catalog](public/sources/curated/catalog.json) include the original downloads and exact image hashes. Added copies preserve the full image at up to 900 pixels on their longest edge; there are no generated assets, filters, or crops. Rights labels remain specific: public domain, CC0, or the Library of Congress’s “no known restrictions” advisory.
+
 ## Development studio
 
 The original manual environment remains at **http://127.0.0.1:4317/studio.html**, outside the product navigation. It is useful for developing the action environment and managing the current source inventory. Existing artwork is preserved.
 
-- Start with the three archival sources, or add PNG, JPEG, or WebP images.
+- Start with 21 bundled sources, or add PNG, JPEG, or WebP images.
 - Browse materials by name, filter used or unused images, and sort by name or added order. Thumbnails preserve the image’s framing and color; the info button shows dimensions and available credits, license, and source link.
 - Click a source and draw a rectangle or polygon. Polygon corners are added by clicking; close at the first corner, or choose **Cut & place**. Numeric rectangle coordinates provide a keyboard alternative.
 - Drag a fragment on the canvas. Select it to change its position, rotation, scale, or layer. Arrow keys nudge by one canvas pixel; Shift + arrow moves ten. Delete returns the selected piece to the tray.
