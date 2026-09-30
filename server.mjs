@@ -8,6 +8,7 @@ import { getSharp, renderSVG, renderPNG } from './lib/render.mjs';
 import { createProviderRegistry } from './lib/providers.mjs';
 import { createRunManager } from './lib/runs.mjs';
 import { createArchiveCatalog } from './lib/archives.mjs';
+import { createGIFExporter } from './lib/gif.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const MAX_BODY_BYTES = 40 * 1024 * 1024;
@@ -158,6 +159,7 @@ export const API_HELP = {
     'GET /api/runs': 'List saved experiments and their progress.',
     'GET /api/runs/:id/events': 'Read observations, requests, returned model output, batch results and termination events.',
     'GET /api/runs/:id/export': 'Download the complete run bundle with deduplicated observation images and replayable project.',
+    'GET /api/runs/:id/render.gif': 'Download playback from blank canvas through the saved cursor after a run ends. No query options. Also available for /api/archives/:id/render.gif.',
     'POST /api/runs/:id/stop': 'Cancel an experiment and retain its committed history.',
   },
   actions: [
@@ -195,6 +197,25 @@ export async function createApp({ publicDir = join(ROOT, 'public'), dataDir = jo
   }
   const runs = await createRunManager({ dataDir: join(dataDir, 'runs'), providerFactory: id => providerRegistry.capture(id) });
   const archives = createArchiveCatalog();
+  const gifs = createGIFExporter();
+  async function sendGIF(response, url, catalog, id) {
+    if (url.searchParams.size) fail('GIF export uses the saved playback and does not accept query options.');
+    const record = await catalog.get(id);
+    if (record.status === 'running') fail('GIF export is available once this work ends.', 409);
+    const controller = new AbortController();
+    const abort = () => { if (!response.writableEnded) controller.abort(); };
+    response.once('close', abort);
+    try {
+      const saved = await catalog.project(id);
+      if (response.destroyed) controller.abort();
+      const bytes = await gifs.render(saved, { signal: controller.signal });
+      response.writeHead(200, {
+        'Content-Type': 'image/gif', 'Content-Length': bytes.length, 'Cache-Control': 'no-store',
+        'Content-Disposition': `attachment; filename="offcut-${id}-playback.gif"`,
+      });
+      response.end(bytes);
+    } finally { response.removeListener('close', abort); }
+  }
   let mutationTail = Promise.resolve();
   let revision = randomUUID();
   const serialized = operation => {
@@ -266,10 +287,11 @@ export async function createApp({ publicDir = join(ROOT, 'public'), dataDir = jo
         return sendJSON(response, 200, { runs: await archives.list() });
       }
       if (path.startsWith('/api/archives/')) {
-        const archiveRoute = /^\/api\/archives\/([a-zA-Z0-9_-]+)(?:\/(project|render\.png|render\.svg))?$/.exec(path);
+        const archiveRoute = /^\/api\/archives\/([a-zA-Z0-9_-]+)(?:\/(project|render\.png|render\.svg|render\.gif))?$/.exec(path);
         if (!archiveRoute) fail('Archived work not found.', 404);
         if (request.method !== 'GET') fail('Archived works are read-only.', 405);
         const [, id, resource] = archiveRoute;
+        if (resource === 'render.gif') return await sendGIF(response, url, archives, id);
         let step;
         if (url.searchParams.has('step')) {
           const raw = url.searchParams.get('step');
@@ -288,7 +310,7 @@ export async function createApp({ publicDir = join(ROOT, 'public'), dataDir = jo
         response.writeHead(200, { 'Content-Type': png ? 'image/png' : 'image/svg+xml; charset=utf-8', 'Cache-Control': 'no-store' });
         return response.end(rendered);
       }
-      const runRoute = /^\/api\/runs\/([a-zA-Z0-9_-]+)(?:\/(events|project|export|render\.png|render\.svg|stop))?$/.exec(path);
+      const runRoute = /^\/api\/runs\/([a-zA-Z0-9_-]+)(?:\/(events|project|export|render\.png|render\.svg|render\.gif|stop))?$/.exec(path);
       if (runRoute) {
         const [, id, resource] = runRoute;
         if (request.method === 'POST' && resource === 'stop') {
@@ -296,6 +318,7 @@ export async function createApp({ publicDir = join(ROOT, 'public'), dataDir = jo
           return sendJSON(response, 200, { run: await runs.stop(id) });
         }
         if (request.method !== 'GET') fail('Method not allowed.', 405);
+        if (resource === 'render.gif') return await sendGIF(response, url, runs, id);
         if (!resource) return sendJSON(response, 200, { run: await runs.get(id) });
         if (resource === 'events') return sendJSON(response, 200, { events: await runs.events(id) });
         let step;
@@ -403,12 +426,13 @@ export async function createApp({ publicDir = join(ROOT, 'public'), dataDir = jo
       response.writeHead(200, { 'Content-Type': type, 'Content-Length': bytes.length, 'Cache-Control': 'no-cache' });
       return response.end(request.method === 'HEAD' ? undefined : bytes);
     } catch (error) {
+      if (response.destroyed) return;
       if (response.headersSent) { response.end(); return; }
       const validationCodes = new Set(['ACTION_LIMIT', 'INVALID_ACTION', 'INVALID_POLYGON', 'INVALID_RULES', 'INVALID_SOURCE', 'MATERIAL_OVERLAP', 'PIECE_LIMIT']);
       const status = error.status || (validationCodes.has(error.code) ? 400 : 500);
       // Domain validation errors are safe, useful feedback for both humans and agents.
       if (status >= 500) logger.error?.(error);
-      sendJSON(response, status, { error: status >= 500 ? 'The worktable could not complete this request. Check the local server for details.' : error.message || 'The request could not be completed.' });
+      sendJSON(response, status, { error: status === 504 ? 'GIF export took too long. Try again.' : status >= 500 ? 'The worktable could not complete this request. Check the local server for details.' : error.message || 'The request could not be completed.' });
     }
   });
   server.requestTimeout = 30_000;
@@ -417,6 +441,7 @@ export async function createApp({ publicDir = join(ROOT, 'public'), dataDir = jo
   return { server, getProject: () => clone(project), getState: () => clone(states[project.cursor]), close: () => {
     closing ??= (async () => {
       await runs.close();
+      await gifs.close();
       if (server.listening) await new Promise((resolveClose, reject) => server.close(error => error ? reject(error) : resolveClose()));
     })();
     return closing;
