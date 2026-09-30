@@ -1,5 +1,7 @@
 # Offcut roadmap
 
+**Current product direction — September 30, 2026:** an observer interface with Library and read-only Work pages. Model setup uses a fixed task and constraints; completed output has playback, fragment/source trays, and explicitly attributed model writing. The two early works are included as truthful archives. See [the component map](docs/PRODUCT.md). Earlier proposals below remain research/expansion ideas, not additions to the current minimal interface.
+
 Drafted September 27, 2026. Priority agreed with the project owner: model experiments first, with a public presence as quickly as possible.
 
 Build a reliable experimental workbench and let a small public gallery grow directly from its recorded runs. A first public preview can show the two existing demonstrations while the model runner is being built. Open community submissions and hosted model execution do not need to be prerequisites for that preview.

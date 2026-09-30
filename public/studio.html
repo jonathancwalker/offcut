@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#faf9f6">
+  <title>Development studio — Offcut</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cpath fill='%23232522' d='M2 2h17v17H2zm19 0h17v17H21zM2 21h17v17H2zm19 0h17L21 38z'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body class="studio-page">
+  <header class="app-header">
+    <a class="brand" href="/" aria-label="Offcut library"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>offcut</a>
+    <nav class="app-nav" aria-label="Main navigation"><a class="nav-link" href="/">Library</a><a class="nav-link active" href="/studio.html" aria-current="page">Development studio</a></nav>
+    <div class="header-actions">
+      <span id="connection" class="connection"><i></i>Saved locally</span>
+      <details class="app-menu" id="project-menu"><summary class="icon-button" aria-label="Project menu" title="Project menu">···</summary><div class="menu-items"><button id="new-button">New canvas</button><button id="import-button">Open project</button><button id="canvas-details-button">Canvas details</button><button id="agent-button">Agent access</button><button id="rules-button">Rules</button></div></details>
+      <button id="export-button" class="primary-button">Export</button>
+    </div>
+  </header>
+  <main class="studio">
+    <aside id="materials-panel" class="materials-panel" aria-label="Materials">
+      <div class="panel-heading"><h2>Materials <span id="source-count" class="count">0</span></h2><button id="upload-button" class="icon-button" aria-label="Add images" title="Add images">+</button></div>
+      <label class="search-field"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m13 13 4 4"/></svg><input id="source-search" type="search" placeholder="Find a material" aria-label="Search materials" autocomplete="off"></label>
+      <div class="material-filters"><label class="sr-only" for="source-filter">Filter materials</label><select id="source-filter"><option value="all">All materials</option><option value="unused">Unused</option><option value="used">In use</option></select><label class="sr-only" for="source-sort">Sort materials</label><select id="source-sort"><option value="added">Added order</option><option value="name">Name A–Z</option></select></div>
+      <div id="sources" class="source-list" aria-label="Source images"></div>
+      <button id="upload-more" class="upload-button">+ Add images</button>
+      <input id="source-input" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden>
+      <div class="tray-section"><div class="tray-heading"><h3>Tray</h3><span id="tray-count" class="count">0</span></div><div id="tray" class="tray"><p class="subtle">No unplaced fragments</p></div></div>
+      <input id="project-input" type="file" accept="application/json,.json" hidden>
+    </aside>
+    <section class="composition-panel" aria-label="Composition studio">
+      <div class="composition-heading"><div class="document-title"><span class="document-icon" aria-hidden="true"></span><input id="composition-title" class="composition-title" aria-label="Composition title" value="Untitled composition" maxlength="160"></div><button id="canvas-size" class="canvas-dimensions text-button" aria-label="Canvas details" title="Canvas details">1000 × 1200</button><button id="mobile-materials" class="text-button mobile-only">Materials</button></div>
+      <div class="worktable" id="worktable">
+        <div id="canvas-shell" class="canvas-shell">
+          <svg id="composition" tabindex="-1" viewBox="0 0 1000 1200" role="group" aria-label="Collage canvas" xmlns="http://www.w3.org/2000/svg"></svg>
+          <div id="empty-canvas" class="empty-canvas"><button id="first-cut" class="first-cut"><span aria-hidden="true">+</span> Cut a fragment</button></div>
+        </div>
+        <div class="canvas-toolbar"><div class="history-tools"><button id="undo-button" class="icon-button" aria-label="Undo last action" title="Undo (⌘Z)">↶</button><button id="redo-button" class="icon-button" aria-label="Redo last action" title="Redo (⌘⇧Z)">↷</button></div><span id="canvas-help">Choose a material</span><button id="deselect-button" class="text-button">Deselect</button></div>
+      </div>
+      <div class="replay-panel"><div class="replay-heading"><div class="replay-title"><h3>Timeline</h3><span id="step-label">0 actions</span></div><button id="replay-button" class="text-button">▶ Play</button></div><input id="timeline" type="range" min="0" max="0" value="0" step="1" aria-label="Replay action"><div class="timeline-caption"><span id="action-caption">No actions yet</span><button id="live-button" class="text-button" hidden>Back to editing</button></div></div>
+    </section>
+    <aside class="details-panel" aria-label="Properties">
+      <div class="inspector-section"><div class="panel-heading"><h2 id="inspector-title">Properties</h2><button id="inspector-dismiss" class="icon-button" aria-label="Deselect fragment" hidden>×</button></div><div id="piece-inspector"><div class="inspector-empty"><p>Select a fragment</p></div></div></div>
+      <div class="project-details"><h3>Canvas</h3><div class="rule-line"><span>Fragments</span><strong id="piece-budget">0 / 24</strong></div><div class="budget-track"><i id="piece-progress"></i></div><div class="rule-line"><span>Actions</span><strong id="action-budget">0 / 120</strong></div></div>
+      <details class="notes-section"><summary>Statement</summary><label class="sr-only" for="statement">Artist statement</label><textarea id="statement" rows="4" maxlength="4000" placeholder="Add a statement…"></textarea></details>
+      <span id="save-status" class="save-status" role="status">Saved locally</span>
+    </aside>
+  </main>
+  <dialog id="cut-dialog" class="cut-dialog" aria-labelledby="cut-title">
+    <div class="dialog-header"><h2 id="cut-title">Cut a fragment</h2><button class="icon-button close-dialog" aria-label="Close cutting view">×</button></div>
+    <div class="cut-toolbar"><div class="segmented"><button id="rectangle-tool" class="active" aria-pressed="true">Rectangle</button><button id="polygon-tool" aria-pressed="false">Polygon</button></div><span id="cut-instruction">Drag to select</span><button id="clear-cut" class="text-button">Clear</button></div>
+    <div class="cut-stage"><svg id="source-canvas" xmlns="http://www.w3.org/2000/svg" aria-label="Source image cutting area"></svg></div>
+    <div class="cut-footer"><span id="cut-measurement" class="cut-measurement">Hatched areas are already used</span><button id="commit-cut" class="primary-button" disabled>Cut & place</button></div>
+    <details class="source-metadata"><summary>Image details</summary><div id="cut-credit"></div></details>
+    <details class="precise-cut"><summary>Coordinates</summary><div class="coordinate-fields"><label>X<input id="cut-x" type="number" min="0" value="0"></label><label>Y<input id="cut-y" type="number" min="0" value="0"></label><label>Width<input id="cut-width" type="number" min="1" value="200"></label><label>Height<input id="cut-height" type="number" min="1" value="200"></label><button id="set-cut" class="secondary-button">Set selection</button></div></details>
+  </dialog>
+  <dialog id="info-dialog" class="info-dialog" aria-labelledby="info-title"><div class="dialog-header"><h2 id="info-title"></h2><button class="icon-button close-dialog" aria-label="Close dialog">×</button></div><div id="info-content"></div></dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

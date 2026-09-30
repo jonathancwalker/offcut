@@ -7,6 +7,7 @@ import { createState, applyAction } from './lib/engine.mjs';
 import { getSharp, renderSVG, renderPNG } from './lib/render.mjs';
 import { createProviderRegistry } from './lib/providers.mjs';
 import { createRunManager } from './lib/runs.mjs';
+import { createArchiveCatalog } from './lib/archives.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const MAX_BODY_BYTES = 40 * 1024 * 1024;
@@ -193,6 +194,7 @@ export async function createApp({ publicDir = join(ROOT, 'public'), dataDir = jo
     states = reconstruct(project);
   }
   const runs = await createRunManager({ dataDir: join(dataDir, 'runs'), providerFactory: id => providerRegistry.capture(id) });
+  const archives = createArchiveCatalog();
   let mutationTail = Promise.resolve();
   let revision = randomUUID();
   const serialized = operation => {
@@ -258,6 +260,33 @@ export async function createApp({ publicDir = join(ROOT, 'public'), dataDir = jo
           return sendJSON(response, 202, { run });
         }
         fail('Method not allowed.', 405);
+      }
+      if (path === '/api/archives') {
+        if (request.method !== 'GET') fail('Method not allowed.', 405);
+        return sendJSON(response, 200, { runs: await archives.list() });
+      }
+      if (path.startsWith('/api/archives/')) {
+        const archiveRoute = /^\/api\/archives\/([a-zA-Z0-9_-]+)(?:\/(project|render\.png|render\.svg))?$/.exec(path);
+        if (!archiveRoute) fail('Archived work not found.', 404);
+        if (request.method !== 'GET') fail('Archived works are read-only.', 405);
+        const [, id, resource] = archiveRoute;
+        let step;
+        if (url.searchParams.has('step')) {
+          const raw = url.searchParams.get('step');
+          if (!/^\d+$/.test(raw) || !Number.isSafeInteger(Number(raw))) fail('Replay step must be a non-negative integer.');
+          step = Number(raw);
+        }
+        if (!resource) return sendJSON(response, 200, { run: await archives.get(id) });
+        if (resource === 'project') {
+          const value = await archives.project(id, { step });
+          response.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Disposition': `attachment; filename="offcut-${id}-project.json"`, 'Cache-Control': 'no-store' });
+          return response.end(JSON.stringify(value, null, 2));
+        }
+        const state = await archives.state(id, { step });
+        const png = resource === 'render.png';
+        const rendered = png ? await renderPNG(state) : renderSVG(state);
+        response.writeHead(200, { 'Content-Type': png ? 'image/png' : 'image/svg+xml; charset=utf-8', 'Cache-Control': 'no-store' });
+        return response.end(rendered);
       }
       const runRoute = /^\/api\/runs\/([a-zA-Z0-9_-]+)(?:\/(events|project|export|render\.png|render\.svg|stop))?$/.exec(path);
       if (runRoute) {

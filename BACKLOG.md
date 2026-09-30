@@ -1,5 +1,7 @@
 # Offcut backlog
 
+**Current product direction — September 30, 2026:** an observer interface with Library and read-only Work pages. Model setup uses a fixed task and constraints; completed output has playback, fragment/source trays, and explicitly attributed model writing. The two early works are included as truthful archives. See [the component map](docs/PRODUCT.md). Earlier proposals below remain research/expansion ideas, not additions to the current minimal interface.
+
 The studio, two exploratory demonstrations and the first OpenAI experiment runner are implemented. Status notes below distinguish completed foundations from further work.
 
 Experiment 002 adds an independent fresh-context demonstration with its prompt, observations, action events and audit. The [product roadmap](ROADMAP.md) sets the delivery sequence: experiments first, a small public preview in parallel, then a published pilot and broader community features. [The research plan](docs/RESEARCH_PLAN.md) defines proposed studies, with an accepted [numerical representation track](docs/REPRESENTATION_TRACK.md). The public gallery has not been deployed.
