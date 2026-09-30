@@ -41,7 +41,7 @@ The shared engine enforces simple source polygons, source boundaries, one-time m
 
 ## Integrated experiment runner
 
-Open `/experiments.html` for the first implementation. `lib/runs.mjs` owns isolated states, source snapshots, events and recovery; `lib/providers.mjs` translates native observations to the OpenAI Responses API. Credentials live in the backend environment or session memory. Tests inject simulated providers without paid requests.
+Open `/new.html` to configure a run. `lib/runs.mjs` owns isolated states, source snapshots, events and recovery; `lib/providers.mjs` translates native observations to the OpenAI Responses API. Credentials live in the backend environment or session memory. Tests inject simulated providers without paid requests.
 
 | Interface | Purpose |
 | --- | --- |
@@ -58,6 +58,12 @@ Open `/experiments.html` for the first implementation. `lib/runs.mjs` owns isola
 Run input is `{provider:"openai",model,prompt,maxTurns,maxActions,maxPieces,maxOutputTokens,maxMinutes}`. Defaults are 12 turns, 120 accepted actions, 24 fragments, 4096 output tokens per turn and 10 minutes. Caps are 40 turns, 240 actions, 64 fragments, 16384 output tokens and 60 minutes. A fixed 250000-character textual context ceiling stops the run without silently removing prior text. There is no dollar estimate or spending cap yet.
 
 The model returns `{decision_note,actions,done}` with up to 12 actions per batch. The engine validates the entire batch atomically. Invalid JSON or actions consume a turn and return corrective feedback; the raw response and rejection remain in the log. A network error stops the run without a retry. Each turn receives all sources and the current canvas as native image attachments, resized to a 1536-pixel maximum edge, plus compact scene state and prior text. Original source coordinates remain authoritative.
+
+New runs use policy version 2 (`offcut-actions-v2`) and allow 3–64 vertices per cut. Instructions take their geometric limits from the run's frozen rules. Existing records retain their saved rules and policy, including the earlier 16-vertex limit.
+
+Completion requires a response after the final visible scene has been supplied as a canvas image. If `done:true` accompanies a batch that changes visible pieces, their geometry, or their layer order, the edits remain accepted and the batch records `completionDeferred:true`. The next turn shows the updated canvas and asks the model to confirm or revise. Further visual edits need another observation. Description-only changes, hidden material, and edits that restore the same visible scene can finish immediately; the comparison conservatively treats changes to fully covered pieces as visual changes too. A `final_review` event links successful confirmation to the observation's canvas hash and records both its observed step and the final action cursor.
+
+Review uses the existing turn, time, context, and output-token limits; it does not grant extra calls. The model is instructed to leave a turn for its final look. If its last available turn changes the scene, the saved work remains partial with a turn-limit outcome. When all actions are used but a turn remains, one read-only review is allowed: `reviewOnly:true` requires `actions:[]`; `done:true` confirms completion, while `done:false`, malformed output, or an attempted edit ends at the action limit. No automatic retry follows that final read-only review.
 
 `events.jsonl` is the accepted-batch commit record; project checkpoints can be reconstructed from it. Hash-addressed assets preserve original sources, observation images and canvases. Exports include the normalized request, provider adapter metadata, raw returned output, usage, errors and stop reason. Pending usage is marked incomplete. Restart reconstructs committed actions and marks unfinished runs interrupted; automatic resume is not implemented.
 

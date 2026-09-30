@@ -14,7 +14,7 @@ The assignment is open-ended: inspect the available materials, choose what the w
 - `GET /api/render.svg`: portable vector container with embedded source images.
 - `GET /api/state?step=N` and `GET /api/render.png?step=N`: inspect after N actions without changing the live state. Step 0 is empty.
 
-State includes canvas dimensions, source IDs and dimensions, source credits, current pieces, rule limits, title, statement, and action count. Read the actual rules rather than assuming the defaults.
+State includes canvas dimensions, source IDs and dimensions, source credits, current pieces, rule limits, title, statement, and action count. Read the actual rules rather than assuming the defaults. New canvases allow up to 64 vertices per cut; existing projects retain their saved limits.
 
 ## Act
 

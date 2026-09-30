@@ -60,6 +60,9 @@ test('two turns send native source/canvas images, freeze inputs, and export exac
   assert.equal(end.costUSD, null);
   assert.equal(factoryCalls(), 1);
   assert.equal(end.spec.prompt, spec.prompt);
+  assert.equal(end.policy.version, 2);
+  assert.equal(end.policy.completion.requiresObservedCanvas, true);
+  assert.equal(end.state.rules.maxVertices, 64);
   assert.equal(end.sourceManifest[0].name, before.name);
   assert.equal(end.state.sources[0].dataUrl, undefined);
   assert.equal(requests[0].messages.length, 1);
@@ -71,6 +74,8 @@ test('two turns send native source/canvas images, freeze inputs, and export exac
     assert.ok(message.images.every(image => image.dataUrl.startsWith('data:image/png;base64,')));
     assert.ok(!message.text.includes('base64'));
     assert.equal(request.maxOutputTokens, 4096);
+    assert.match(request.instructions, /3–64 vertices/);
+    assert.match(request.instructions, /Leave a turn in your budget/);
   }
   assert.equal(requests[1].messages[0].images, undefined);
   assert.notEqual(requests[0].messages[0].images[1].dataUrl, requests[1].messages.at(-1).images[1].dataUrl);
@@ -84,6 +89,11 @@ test('two turns send native source/canvas images, freeze inputs, and export exac
   const events = manager.events(run.id);
   assert.deepEqual(events.map(event => event.sequence), events.map((_, index) => index + 1));
   assert.equal(events.filter(event => event.type === 'model_output').length, 2);
+  const review = events.find(event => event.type === 'final_review');
+  assert.equal(review.turn, 2);
+  assert.equal(review.observedStep, 2);
+  assert.equal(review.step, 3, 'describing the observed canvas needs no extra image turn');
+  assert.equal(review.canvasSha256, events.find(event => event.type === 'observation' && event.turn === 2).canvasSha256);
   const bundle = await manager.bundle(run.id);
   assert.equal(bundle.format, 'offcut-run');
   assert.ok(!JSON.stringify(bundle).includes('sk-private-test-only'));
@@ -108,6 +118,7 @@ test('an invalid multi-action batch is rejected atomically and returned as feedb
   const { manager, source } = await setup(t, async request => {
     calls++;
     if (calls === 1) return output([cut, { ...place, pieceId: 'missing' }]);
+    if (calls === 3) return output([], true);
     const observation = JSON.parse(request.messages.at(-1).text);
     assert.equal(observation.state.pieces.length, 0);
     assert.equal(observation.actionsRemaining, 120);
@@ -147,6 +158,7 @@ test('action and piece limits are enforced by atomic validation, including consu
   const { manager, source } = await setup(t, async () => {
     calls++;
     if (calls === 1) return output([cut, { ...cut, pieceId: 'second', polygon: [[50, 50], [90, 50], [90, 90], [50, 90]] }]);
+    if (calls === 3) return output([], false, 'The work needs more edits, but there are no actions left.');
     return output([cut, place]);
   });
   const run = await manager.start({ spec: { ...spec, maxPieces: 1, maxActions: 2 }, sources: [source] });
@@ -155,7 +167,7 @@ test('action and piece limits are enforced by atomic validation, including consu
   assert.equal(end.terminationReason, 'action_limit');
   assert.equal(end.acceptedActions, 2);
   assert.equal(end.rejectedBatches, 1);
-  assert.equal(calls, 2);
+  assert.equal(calls, 3, 'the exhausted action budget still allows one final look within the turn budget');
   assert.equal(manager.events(run.id).find(event => event.type === 'batch_result').code, 'PIECE_LIMIT');
 });
 
@@ -197,7 +209,8 @@ test('a deadline aborts an in-flight request even when the provider ignores its 
 });
 
 test('restart reconstructs committed batches from events and repairs a stale project checkpoint without duplicates', async t => {
-  const { manager, source, dataDir, providerFactory } = await setup(t, async () => output([cut, place, describe], true));
+  let calls = 0;
+  const { manager, source, dataDir, providerFactory } = await setup(t, async () => ++calls === 1 ? output([cut, place, describe], true) : output([], true));
   const run = await manager.start({ spec, sources: [source] });
   await finished(manager, run.id);
   const expectedPNG = await renderPNG(manager.state(run.id));
@@ -211,7 +224,146 @@ test('restart reconstructs committed batches from events and repairs a stale pro
   assert.equal(restarted.state(run.id).pieces.length, 1);
   assert.deepEqual(await renderPNG(restarted.state(run.id)), expectedPNG);
   assert.equal(restarted.events(run.id).filter(event => event.type === 'termination').length, 1);
+  assert.equal(restarted.events(run.id).filter(event => event.type === 'final_review').length, 1);
   assert.equal(JSON.parse(await readFile(join(runDir, 'project.json'), 'utf8')).cursor, 3);
+});
+
+test('a finish request with visual edits stays running until the rendered result is reviewed', async t => {
+  const enteredReview = deferred(), confirm = deferred();
+  const requests = [];
+  const { manager, source } = await setup(t, async request => {
+    requests.push(request);
+    if (requests.length === 1) return output([cut, place, describe], true);
+    enteredReview.resolve();
+    await confirm.promise;
+    return output([], true, 'The displayed result is finished.');
+  });
+  const run = await manager.start({ spec, sources: [source] });
+  await enteredReview.promise;
+  assert.equal(manager.get(run.id).status, 'running');
+  assert.equal(manager.get(run.id).acceptedActions, 3);
+  assert.equal(manager.get(run.id).rejectedBatches, 0);
+  assert.equal(manager.events(run.id).find(event => event.type === 'batch_result').completionDeferred, true);
+  assert.equal(manager.events(run.id).some(event => event.type === 'termination'), false);
+  const reviewMessage = requests[1].messages.at(-1);
+  assert.match(JSON.parse(reviewMessage.text).feedback, /Finishing is deferred/);
+  const displayed = Buffer.from(reviewMessage.images.at(-1).dataUrl.split(',')[1], 'base64');
+  assert.deepEqual(displayed, await renderPNG(manager.state(run.id)));
+  assert.notEqual(requests[0].messages.at(-1).images.at(-1).dataUrl, reviewMessage.images.at(-1).dataUrl);
+  confirm.resolve();
+  const end = await finished(manager, run.id);
+  assert.equal(end.status, 'completed');
+  assert.equal(end.turns, 2);
+  const review = manager.events(run.id).find(event => event.type === 'final_review');
+  assert.equal(review.observedStep, 3);
+  assert.equal(review.canvasSha256, createHash('sha256').update(displayed).digest('hex'));
+});
+
+test('revisions during a final look require the revised canvas to be observed again', async t => {
+  const requests = [];
+  const move = { type: 'transform', pieceId: 'leaf', x: 650, rotation: 35 };
+  const { manager, source } = await setup(t, async request => {
+    requests.push(request);
+    if (requests.length === 1) return output([cut, place], true);
+    if (requests.length === 2) return output([move], true);
+    return output([describe], true);
+  });
+  const run = await manager.start({ spec, sources: [source] });
+  const end = await finished(manager, run.id);
+  assert.equal(end.status, 'completed');
+  assert.equal(end.turns, 3);
+  assert.deepEqual(manager.project(run.id).actions.map(record => record.action), [cut, place, move, describe]);
+  assert.notEqual(requests[1].messages.at(-1).images.at(-1).dataUrl, requests[2].messages.at(-1).images.at(-1).dataUrl);
+  const events = manager.events(run.id);
+  assert.deepEqual(events.filter(event => event.type === 'batch_result').map(event => event.completionDeferred), [true, true, false]);
+  assert.equal(events.find(event => event.type === 'final_review').observedStep, 3);
+});
+
+test('last-turn edits are preserved as partial work and never reported as reviewed completion', async t => {
+  let calls = 0;
+  const { manager, source } = await setup(t, async () => { calls++; return output([cut, place, describe], true); });
+  const run = await manager.start({ spec: { ...spec, maxTurns: 1 }, sources: [source] });
+  const end = await finished(manager, run.id);
+  assert.equal(end.status, 'limit_reached');
+  assert.equal(end.terminationReason, 'turn_limit');
+  assert.equal(end.acceptedActions, 3);
+  assert.equal(end.rejectedBatches, 0);
+  assert.equal(calls, 1);
+  assert.equal(manager.events(run.id).some(event => event.type === 'final_review'), false);
+});
+
+test('an exhausted action allowance gets exactly one read-only final look within remaining turns', async t => {
+  const cases = [
+    { name: 'confirm', response: output([], true), status: 'completed', rejected: 0 },
+    { name: 'decline', response: output([], false), status: 'limit_reached', rejected: 0 },
+    { name: 'malformed', response: { ...output(), text: 'not JSON' }, status: 'limit_reached', rejected: 1 },
+    { name: 'attempt an edit', response: output([{ type: 'remove', pieceId: 'leaf' }], true), status: 'limit_reached', rejected: 1 },
+  ];
+  for (const scenario of cases) await t.test(scenario.name, async t => {
+    let calls = 0;
+    const { manager, source } = await setup(t, async request => {
+      calls++;
+      if (calls === 1) return output([cut, place], true);
+      const observation = JSON.parse(request.messages.at(-1).text);
+      assert.equal(observation.reviewOnly, true);
+      assert.equal(observation.actionsRemaining, 0);
+      assert.equal(observation.state.pieces[0].visible, true);
+      assert.match(observation.feedback, /action budget is exhausted/);
+      return scenario.response;
+    });
+    const run = await manager.start({ spec: { ...spec, maxActions: 2, maxTurns: 4 }, sources: [source] });
+    const end = await finished(manager, run.id);
+    assert.equal(end.status, scenario.status);
+    assert.equal(end.terminationReason, scenario.status === 'completed' ? 'model_finished' : 'action_limit');
+    assert.equal(end.acceptedActions, 2);
+    assert.equal(end.rejectedBatches, scenario.rejected);
+    assert.equal(calls, 2);
+    assert.equal(manager.state(run.id).pieces[0].visible, true);
+    assert.equal(manager.events(run.id).filter(event => event.type === 'final_review').length, scenario.status === 'completed' ? 1 : 0);
+  });
+});
+
+test('net-zero edits and hidden material do not force redundant canvas reviews', async t => {
+  const transform = x => ({ type: 'transform', pieceId: 'leaf', x });
+  const scenarios = [
+    { name: 'unplaced cut', batches: [[cut, describe]] },
+    { name: 'place then remove', batches: [[cut, place, { type: 'remove', pieceId: 'leaf' }, describe]] },
+    { name: 'transform then revert', batches: [[cut, place], [transform(600), transform(300), describe]] },
+    { name: 'reorder across hidden material', batches: [[cut, place, { ...cut, pieceId: 'hidden', polygon: [[50, 50], [90, 50], [90, 90], [50, 90]] }], [{ type: 'reorder', pieceId: 'leaf', index: 1 }, describe]] },
+  ];
+  for (const scenario of scenarios) await t.test(scenario.name, async t => {
+    let calls = 0;
+    const { manager, source } = await setup(t, async () => {
+      assert.ok(calls < scenario.batches.length, 'must not make a redundant provider call');
+      return output(scenario.batches[calls++], calls === scenario.batches.length);
+    });
+    const run = await manager.start({ spec, sources: [source] });
+    const end = await finished(manager, run.id);
+    assert.equal(end.status, 'completed');
+    assert.equal(calls, scenario.batches.length);
+    const review = manager.events(run.id).find(event => event.type === 'final_review');
+    assert.ok(review.step > review.observedStep);
+    assert.deepEqual(await renderPNG(manager.state(run.id)), await renderPNG(manager.state(run.id, { step: review.observedStep })));
+  });
+});
+
+test('stopping during final review preserves accepted edits and ignores a late confirmation', async t => {
+  const reviewing = deferred(), answer = deferred();
+  let calls = 0;
+  const { manager, source } = await setup(t, async () => {
+    if (++calls === 1) return output([cut, place], true);
+    reviewing.resolve();
+    return answer.promise;
+  });
+  const run = await manager.start({ spec, sources: [source] });
+  await reviewing.promise;
+  await manager.stop(run.id);
+  answer.resolve(output([], true));
+  await immediate();
+  assert.equal(manager.get(run.id).status, 'stopped');
+  assert.equal(manager.get(run.id).acceptedActions, 2);
+  assert.equal(manager.events(run.id).some(event => event.type === 'final_review'), false);
+  assert.equal(manager.events(run.id).filter(event => event.type === 'termination').length, 1);
 });
 
 test('unfinished runs become interrupted on restart; a partial event tail is preserved and recovered', async t => {
