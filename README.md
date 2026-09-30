@@ -2,7 +2,7 @@
 
 A local environment for observing what an AI agent invents from existing images. Start a bounded task, then inspect the finished collage, its fragments, original sources, and recorded construction.
 
-The product has two pages: **Library** and **Work**. [The component map](docs/PRODUCT.md) defines their scope. The [roadmap](ROADMAP.md), [research plan](docs/RESEARCH_PLAN.md), and [representation track](docs/REPRESENTATION_TRACK.md) cover further development.
+The product centers on **Library**, **New run**, and **Work**. [The component map](docs/PRODUCT.md) defines their scope. The [roadmap](ROADMAP.md), [research plan](docs/RESEARCH_PLAN.md), and [representation track](docs/REPRESENTATION_TRACK.md) cover further development.
 
 ## Run
 
@@ -21,19 +21,31 @@ The app listens on this computer only. The manual studio works offline without a
 
 The home page is the **Library**. It includes recorded model runs and the two early archived works. Cards show an app-owned work ID, model, provider, date, and outcome. Search by work ID/model/provider, filter by model or outcome, and browse in pages of 24.
 
-1. Choose **Run a model** and connect an OpenAI API key. A key entered here stays in server memory until forgotten or the server restarts; keys are not saved to browser storage, projects, or records. An `OPENAI_API_KEY` environment variable is also supported.
-2. Choose an image-capable model that supports the Responses API. Test connection lists accessible model IDs; listing alone does not verify image support.
-3. Inspect the current sources and fixed task/limits, then choose **Start**. The model gets a separate blank canvas and an immutable source snapshot. Setup currently uses all images in the local source inventory.
-4. Return to Library. Working records show status; their work and playback become available once the run ends. A working record also offers Stop.
+1. Open **New run** at `/new.html` from Library. Select 1–24 source images, or upload images to the local inventory and select them. The model will receive only the selected images, with a fresh copy of their material for this run.
+2. Connect an OpenAI API key and choose an image-capable model that supports the Responses API. A key entered here stays in server memory until forgotten or the server restarts; keys are not saved to browser storage, projects, or records. An `OPENAI_API_KEY` environment variable is also supported. **Check access & load models** lists accessible model IDs; listing alone does not verify image support.
+3. Choose **Small**, **Standard**, or **Extended**, or customize the limits. Inspect the fixed task and start the run. The model gets a separate blank canvas and an immutable snapshot of the selected images.
+4. Return to Library. Working records show status; their work and playback become available once the run ends. A working record also offers Stop. If a start request has an uncertain outcome, retry that same request rather than starting again: the server returns its existing work when one was already created.
 5. Open a finished work to replay accepted actions. Switch between **Fragments** and **Sources**. Select a fragment to inspect exactly where it came from. Model-authored titles/statements are explicitly labeled inside the viewer and never become system record names.
 
-The task and limits are fixed in this initial product flow: 24 fragments, 120 accepted actions, 12 model turns, 10 minutes, and 4,096 output tokens per turn. Artwork is read-only; playback never changes the record. Failed/stopped/limited runs retain their saved output and honest outcome labels.
+The task stays open: create an original collage from the supplied material, choose its subject and composition, and supply a title and short statement. There is no target image or editable creative prompt. The user chooses the model, source material, and limits; the model makes the work.
+
+| Budget | Fragments | Accepted actions | Model turns | Time limit | Output tokens per turn |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Small | 12 | 60 | 6 | 5 min | 4,096 |
+| Standard | 24 | 120 | 12 | 10 min | 4,096 |
+| Extended | 48 | 240 | 24 | 20 min | 4,096 |
+
+These are ceilings, not promised duration, fragment count, or quality. Custom limits allow 1–64 fragments, 1–240 accepted actions, 1–40 turns, 1–60 minutes, and 256–16,384 output tokens per turn. Each turn permits up to 12 actions; rejected batches still consume a turn. Cutting and placing a fragment require separate actions.
+
+The local source inventory currently holds at most 24 images and 24 MB of normalized image data. Uploads add to this shared inventory without changing earlier runs. Full source management, including removal and replacement, is deferred. Selection is frozen at launch, and changed or missing selected material must be reviewed before proceeding.
+
+Artwork is read-only; playback never changes the record. Failed/stopped/limited runs retain their saved output and honest outcome labels. The folded work record includes the task and limits actually used, omitting information that was not recorded for older archives.
 
 The two archived works are read from `experiments/001/final-project.json` and `experiments/002/final-project.json`. Exact model identifiers were not captured. A001 includes five human seed actions; A002 began with a blank canvas and fresh agent context. Archive playback preserves those distinctions. Legacy `/experiments.html?run=…` links redirect to the new viewer.
 
 Runs save under `.data/runs/`. Each has frozen sources and their hashes, a specification, append-only events, image observations, model outputs, and replayable accepted actions. Past source/canvas observations are stored by hash; a full run export includes their bytes. Model calls use native image inputs with images resized to at most 1536 pixels on their longest edge. Cut coordinates remain in original source pixels. Prior textual context is retained; past image attachments are not resent.
 
-Limits cover model turns, accepted actions, fragments, output tokens per request and elapsed time, plus a fixed textual-context ceiling. Usage is recorded when returned. **Dollar estimates and spending caps are not implemented yet**; a cancelled or failed request may still be billed, and incomplete usage is labeled. Network failures are not retried automatically. Malformed or invalid action batches remain recorded and can be corrected within the remaining turn budget. Restarting the server marks unfinished runs interrupted; it does not automatically resume paid requests.
+Limits cover model turns, accepted actions, fragments, output tokens per request and elapsed time, plus a fixed textual-context ceiling. Usage is recorded when returned. **Dollar estimates and spending caps are not implemented yet**; a cancelled or failed request may still be billed, and incomplete usage is labeled. Provider network failures stop the run without automatic retries. Retrying an uncertain launch uses the same request identity to avoid creating a second run; it does not repeat model calls within an existing run. Malformed or invalid action batches remain recorded and can be corrected within the remaining turn budget. Restarting the server marks unfinished runs interrupted; it does not automatically resume paid requests.
 
 The first adapter supports OpenAI. Additional providers, repeat queues, richer observation playback, public publishing and measurement computation remain on the roadmap. Tests use simulated providers; a live paid inference run is a separate validation step.
 
@@ -57,7 +69,7 @@ Work saves automatically to `.data/session.json` after every accepted mutation. 
 
 The default canvas is 1000 × 1200 pixels with a plain paper-colored background. Every artwork fragment refers to an original raster image plus a polygon in that image's coordinates. The renderer clips and transforms that source; it does not generate artwork pixels, paint, recolor, blend, add typography, or stretch non-uniformly. Rotation and resizing use normal image resampling, so this is provenance-preserving composition rather than a promise of identical output RGB values after resampling.
 
-- Up to **24 cut fragments** and **120 successful actions**.
+- Standard runs and the developer studio default to **24 cut fragments** and **120 successful actions**. Other model runs use their selected budget.
 - Cuts are simple polygons with 3–16 corners, at least 100 square source pixels, fully inside a source image.
 - Polygon boundaries may touch, but their interiors cannot overlap on the same source.
 - Cutting consumes material even while the fragment is in the tray. Removing a piece does not make the original source region available again.
@@ -68,7 +80,7 @@ This version is an **exploration environment**, not a validated creativity leade
 
 ## Agent access
 
-For the external-agent workflow, choose **Project menu → Agent access** in the studio for a copyable prompt. This button does not start a model automatically. That external agent needs image-reading and local HTTP access on this computer. The integrated **Run a model** flow instead calls OpenAI from the local server and applies commands locally; the remote model does not access localhost or the desktop.
+For the external-agent workflow, choose **Project menu → Agent access** in the studio for a copyable prompt. This button does not start a model automatically. That external agent needs image-reading and local HTTP access on this computer. The integrated **New run** flow instead calls OpenAI from the local server and applies commands locally; the remote model does not access localhost or the desktop.
 
 Read [AGENT_PROTOCOL.md](./AGENT_PROTOCOL.md) for the action contract, or open `GET /api/help` for the machine-readable reference. Both manual and agent edits use the same authoritative engine. External agent edits appear in the browser automatically.
 
@@ -82,12 +94,12 @@ npm test
 
 Tests cover polygon validity and overlap, finite material, immutable state, limits, source metadata, renderer fidelity, layering, atomic action batches, undo/redo and replay, persistence, image input validation, portable imports, and local-request protection. Runner checks cover native image delivery, credential handling, isolation, invalid batches, cancellation, time/context limits, recovery and exact exported replay. Integration tests use simulated providers and bind temporary loopback ports, which need permission in a sandbox that blocks local servers.
 
-The browser workflow was also exercised for cutting, dragging, transforms, provenance, undo/redo, replay, mobile controls, and keyboard focus. Collection checks cover model/outcome filters, 50 simulated run summaries, pending/finished separation, fixed setup, and uncertain-network handling. Viewer checks cover exact fragment/source tracing, attributed text, archived seeds, partial output, and summary-only polling while working. Archive tests reproduce both original PNGs exactly.
+The browser workflow was also exercised for cutting, dragging, transforms, provenance, undo/redo, replay, mobile controls, and keyboard focus. Collection checks cover model/outcome filters, 50 simulated run summaries, pending/finished separation, and uncertain-network handling. Viewer checks cover exact fragment/source tracing, attributed text, archived seeds, partial output, and summary-only polling while working. Archive tests reproduce both original PNGs exactly.
 
 ## Project structure
 
 ```text
-public/             Library, observer viewer, developer studio, local assets
+public/             Library, run setup, observer viewer, developer studio, local assets
 lib/engine.mjs      Pure state transitions and geometry validation
 lib/render.mjs      Source-preserving SVG and PNG rendering
 lib/runs.mjs        Isolated model loop, observations, durable events and recovery

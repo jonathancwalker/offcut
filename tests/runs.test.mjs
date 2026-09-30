@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, readFile, writeFile, rm, readdir, appendFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { setImmediate as immediate } from 'node:timers/promises';
 import { createRunManager } from '../lib/runs.mjs';
 import { getSharp, renderPNG } from '../lib/render.mjs';
@@ -274,4 +274,26 @@ test('spec validation rejects unknown fields and invalid bounds before invoking 
   assert.equal(factoryCalls(), 0);
   assert.throws(() => manager.get('../../credentials'), error => error.status === 404);
   assert.equal(manager.list().length, 0);
+});
+
+test('launch metadata is bounded, contains no extra fields, and is saved before provider execution', async t => {
+  let persisted;
+  const { manager, source, dataDir, factoryCalls } = await setup(t, async request => {
+    const id = JSON.parse(request.messages.at(-1).text).state.id;
+    persisted = JSON.parse(await readFile(join(dataDir, id, 'run.json'), 'utf8'));
+    return output([], true);
+  });
+  const launch = { clientRequestId: randomUUID(), requestFingerprint: 'a'.repeat(64) };
+  for (const invalid of [null, [], {}, { ...launch, apiKey: 'do-not-store' }, { ...launch, clientRequestId: '' }, { ...launch, requestFingerprint: [] }]) {
+    await assert.rejects(manager.start({ spec, sources: [source], launch: invalid }), error => error.status === 400);
+  }
+  assert.equal(factoryCalls(), 0);
+  const run = await manager.start({ spec, sources: [source], launch });
+  const expected = { ...launch };
+  launch.requestFingerprint = 'b'.repeat(64);
+  await finished(manager, run.id);
+  assert.deepEqual(persisted.launch, expected);
+  assert.deepEqual(manager.get(run.id).launch, expected);
+  assert.deepEqual(manager.events(run.id).find(event => event.type === 'run_started').launch, expected);
+  assert.equal(factoryCalls(), 1);
 });

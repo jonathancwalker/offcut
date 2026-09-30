@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#f8f5ef">
+  <title>New run — Offcut</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cpath fill='%23232522' d='M2 2h17v17H2zm19 0h17v17H21zM2 21h17v17H2zm19 0h17L21 38z'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/new.css">
+</head>
+<body class="new-page">
+  <header class="app-header">
+    <a class="brand" href="/" aria-label="Offcut library"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>offcut</a>
+    <nav class="app-nav" aria-label="Main navigation"><a class="nav-link" href="/">Library</a><a class="nav-link active" href="/new.html" aria-current="page">New run</a></nav>
+  </header>
+  <main class="new-main">
+    <div class="new-heading"><div><h1>New run</h1><p>Choose the images. Leave the composition to the model.</p></div></div>
+    <div id="page-error" class="notice error-notice" role="alert" hidden><p id="page-error-message"></p><button id="retry-load" type="button" class="text-button">Reload setup</button></div>
+    <div id="active-notice" class="notice" hidden><p>A model is already working.</p><a id="active-link" href="/" class="text-button">View work ↗</a></div>
+    <div id="pending-notice" class="notice pending-notice" role="status" hidden><div><strong>Let’s check that start.</strong><p>The response was interrupted. Retrying this request won’t start a second run.</p></div><button id="retry-start" type="button" class="secondary-button">Retry start</button></div>
+    <div class="setup-layout">
+      <section class="materials-area" aria-labelledby="materials-heading">
+        <div class="section-heading"><h2 id="materials-heading">Source images <span id="catalog-count"></span></h2><button id="add-images" type="button" class="secondary-button" disabled><span aria-hidden="true">+</span> Add images</button><input id="image-files" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden></div>
+        <div class="material-toolbar"><label class="material-search"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m12.5 12.5 4 4"/></svg><input id="source-search" type="search" placeholder="Find an image" aria-label="Find a source image" autocomplete="off"></label><div class="selection-tools"><button id="select-all" type="button" class="text-button" disabled>Select all</button><span aria-hidden="true">/</span><button id="clear-selection" type="button" class="text-button" disabled>Clear</button></div></div>
+        <p id="material-message" class="material-message" role="status"></p>
+        <div id="source-grid" class="source-grid" aria-busy="true"><p class="material-empty">Loading images…</p></div>
+        <div id="source-empty" class="material-empty" hidden><p>No source images yet.</p><button id="empty-add" type="button" class="text-button">Add your first images</button></div>
+        <div id="search-empty" class="material-empty" hidden><p>No images match this search.</p><button id="clear-search" type="button" class="text-button">Clear search</button></div>
+        <div class="selected-materials"><div class="selected-heading"><h3>On the table <span id="selection-count" aria-live="polite">0 images</span></h3><span>Fresh material for this run</span></div><div id="selected-tray" class="selected-tray"><p>Choose at least one image above.</p></div></div>
+        <p id="upload-capacity" class="fine-print">PNG, JPEG or WebP · Up to 24 images in your local collection</p>
+      </section>
+      <aside class="run-settings" aria-label="Run settings">
+        <section class="model-section" aria-labelledby="model-heading">
+          <div class="section-heading"><h2 id="model-heading">Model</h2><span class="provider-name">OpenAI</span></div>
+          <label class="sr-only" for="model">Model ID</label><input id="model" type="text" list="available-models" form="run-form" required maxlength="160" pattern="[a-zA-Z0-9][a-zA-Z0-9._:\/\-]{0,159}" autocomplete="off" placeholder="Choose or enter a model ID" aria-describedby="model-help" disabled><datalist id="available-models"></datalist>
+          <p id="model-help" class="field-help">Choose a model that accepts images.</p>
+          <details id="connection-settings" class="connection-settings"><summary><span id="provider-status">Checking key…</span><span class="connection-toggle">Connection</span></summary><form id="key-form"><label for="api-key">API key</label><div class="key-entry"><input id="api-key" type="password" autocomplete="off" spellcheck="false" placeholder="Paste API key" aria-describedby="key-help" disabled><button id="save-key" class="secondary-button" type="submit" disabled>Save</button></div><p id="key-help" class="field-help">Session only. Never saved to browser storage.</p></form><div class="connection-tools"><button id="test-connection" class="text-button" type="button" disabled>Check access &amp; load models</button><button id="forget-key" class="text-button" type="button" hidden>Forget key</button></div><p id="connection-message" class="field-help" role="status"></p></details>
+        </section>
+        <section class="budget-section" aria-labelledby="budget-heading"><div class="section-heading"><h2 id="budget-heading">Room to work</h2><span id="budget-name">Standard</span></div>
+          <fieldset id="budget-presets" class="budget-presets" disabled><legend class="sr-only">Run budget</legend><label class="budget-option"><input type="radio" name="budget" value="small"><span class="budget-choice"><strong>Small</strong><span><b>12</b> fragments <i>·</i> 60 actions</span></span></label><label class="budget-option"><input type="radio" name="budget" value="standard" checked><span class="budget-choice"><strong>Standard</strong><span><b>24</b> fragments <i>·</i> 120 actions</span></span></label><label class="budget-option"><input type="radio" name="budget" value="extended"><span class="budget-choice"><strong>Extended</strong><span><b>48</b> fragments <i>·</i> 240 actions</span></span></label></fieldset>
+          <details id="customize-budget" class="customize-budget"><summary>Adjust limits <span id="secondary-limits">12 turns · 10 min max</span></summary><p class="field-help">Maximum allowances. The model can finish sooner.</p><fieldset id="custom-limits" class="custom-limits" disabled><legend class="sr-only">Custom run limits</legend><label>Fragments<input id="maxPieces" form="run-form" type="number" min="1" max="64" step="1" value="24" required></label><label>Actions<input id="maxActions" form="run-form" type="number" min="1" max="240" step="1" value="120" required></label><label>Model turns<input id="maxTurns" form="run-form" type="number" min="1" max="40" step="1" value="12" required></label><label>Minutes<input id="maxMinutes" form="run-form" type="number" min="1" max="60" step="1" value="10" required></label><label class="wide-field">Output tokens per turn<input id="maxOutputTokens" form="run-form" type="number" min="256" max="16384" step="1" value="4096" required></label></fieldset></details>
+        </section>
+        <details class="task-details"><summary>The assignment</summary><p id="fixed-prompt"></p><p class="field-help">Existing images only. Cut, move, rotate, scale and layer. Each source area can be cut once. A fresh 1000 × 1200 canvas.</p></details>
+        <div class="start-section"><p id="run-summary" class="run-summary">0 images · 24 fragments max</p><p id="launch-error" class="form-error" role="alert" hidden></p><button id="refresh-materials" class="text-button" type="button" hidden>Refresh images &amp; review selection</button><form id="run-form"><button id="launch-run" class="primary-button start-button" type="submit" disabled><span>Start run</span><span aria-hidden="true">↗</span></button></form><p id="launch-help" class="field-help" role="status">Loading setup…</p><p class="billing-note">Uses your API account. No dollar cap yet.</p></div>
+      </aside>
+    </div>
+  </main>
+  <dialog id="source-dialog" class="source-dialog" aria-labelledby="source-title"><div class="source-dialog-heading"><h2 id="source-title"></h2><button id="close-source" class="icon-button" aria-label="Close image details">×</button></div><div class="source-dialog-image"><img id="source-full" alt=""></div><div class="source-dialog-footer"><dl id="source-metadata"></dl><button id="toggle-preview-source" class="secondary-button" type="button">Select image</button></div></dialog>
+  <script type="module" src="/new.js"></script>
+</body>
+</html>
