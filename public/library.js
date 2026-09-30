@@ -1,8 +1,6 @@
 const $ = id => document.getElementById(id);
 const PAGE_SIZE = 24;
-const TASK = 'Create an original collage from the provided source images. Choose your own subject and composition. There is no target image. Give the finished work a title and a short statement.';
-const LIMITS = {maxTurns:12,maxActions:120,maxPieces:24,maxOutputTokens:4096,maxMinutes:10};
-const state = {provider:null,sources:[],runs:[],archives:[],cards:new Map(),query:'',model:'',status:'all',visibleLimit:PAGE_SIZE,loaded:false,refreshing:false,setupLoading:false,setupReady:false,setupReturn:null,launching:false,pendingLaunch:null,checkingLaunch:false,credentialBusy:false,timer:null};
+const state = {runs:[],archives:[],cards:new Map(),query:'',model:'',status:'all',visibleLimit:PAGE_SIZE,loaded:false,refreshing:false,timer:null};
 const statusNames = {running:'Working',completed:'Completed',archived:'Archived',stopped:'Stopped',failed:'Failed',interrupted:'Interrupted',limit_reached:'Limit reached'};
 const isActive = run => run.status === 'running';
 const workLabel = id => `Work · ${id.startsWith('archive-') ? 'A'+id.slice(8) : id.replace(/^run-/,'').slice(0,8)}`;
@@ -22,28 +20,6 @@ async function request(path,{method='GET',body,timeout=30000}={}) {
   finally{clearTimeout(timer);}
 }
 function pageError(message){$('page-error-message').textContent=message||'';$('page-error').hidden=!message;}
-function connectionMessage(message,error=false){$('connection-message').textContent=message;$('connection-message').classList.toggle('error',error);}
-function updateLaunch(){
-  const active=state.runs.some(isActive);
-  $('launch-run').disabled=state.launching||state.credentialBusy||!!state.pendingLaunch||!state.setupReady||!state.provider?.configured||!state.sources.length||active||!$('model').value.trim();
-  $('launch-run').textContent=state.launching?'Starting…':'Start';$('launch-run').setAttribute('aria-busy',String(state.launching));$('close-setup').disabled=state.launching;
-  $('launch-help').textContent=state.launching?'Starting work…':state.pendingLaunch?'Check whether the last attempt started.':state.setupLoading?'Loading setup…':!state.setupReady?'Setup unavailable. Close and retry.':active?'A model is already working.':!state.provider?.configured?'Connect an API key.':!state.sources.length?'No source images available.':!$('model').value.trim()?'Choose a model.':'Return to the library when it’s done.';
-  $('check-launch').hidden=!state.pendingLaunch||state.launching;$('check-launch').disabled=state.checkingLaunch||state.launching;$('check-launch').textContent=state.checkingLaunch?'Checking…':'Check for a started work';
-}
-function renderProvider(){
-  const configured=!!state.provider?.configured;
-  $('provider-status').textContent=configured?'Connected':'Not connected';$('provider-status').classList.toggle('connected',configured);
-  $('test-connection').disabled=!configured||state.credentialBusy;$('forget-key').hidden=state.provider?.keySource!=='session';$('forget-key').disabled=state.credentialBusy;$('save-key').disabled=state.credentialBusy;$('api-key').disabled=state.credentialBusy;
-  $('key-help').textContent=state.provider?.keySource==='environment'?'Using the server key. A session key overrides it.':'Kept in server memory. Never saved to browser storage or exports.';updateLaunch();
-}
-async function loadProvider(){const result=await request('/api/providers');state.provider=result.providers?.find(p=>p.id==='openai')||null;if(!$('model').value&&result.defaultModel)$('model').value=result.defaultModel;renderProvider();}
-async function loadSources(){
-  const result=await request('/api/state');state.sources=result.state?.sources||[];
-  const fragment=document.createDocumentFragment();
-  for(const source of state.sources){const figure=element('figure','setup-source');const image=element('img');image.src=source.dataUrl;image.alt='';image.loading='lazy';image.decoding='async';image.addEventListener('error',()=>image.replaceWith(element('span','source-error','Preview unavailable')),{once:true});const caption=element('figcaption','',source.name);caption.title=source.name;figure.append(image,caption);fragment.append(figure);}
-  if(!state.sources.length)fragment.append(element('p','field-help','No source images available.'));
-  $('setup-sources').replaceChildren(fragment);$('materials-count').textContent=state.sources.length;updateLaunch();
-}
 function allWorks(){return [...state.runs,...state.archives].filter(run=>!isActive(run)).sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt))||a.id.localeCompare(b.id));}
 function filteredWorks(){return allWorks().filter(run=>(state.status==='all'||run.status===state.status)&&(!state.model||(run.spec?.model||'__unrecorded__')===state.model)&&(!state.query||`${workLabel(run.id)} ${run.id} ${modelName(run)} ${providerName(run)}`.toLocaleLowerCase().includes(state.query)));}
 function createCard(run){
@@ -85,9 +61,8 @@ function renderLibrary(){
   for(const id of state.cards.keys())if(!works.some(run=>run.id===id))state.cards.delete(id);
   $('run-list').replaceChildren(fragment);if(focused&&state.cards.get(focused)?.isConnected)state.cards.get(focused).focus({preventScroll:true});
   $('run-count').textContent=works.length;$('empty-library').hidden=!state.loaded||works.length>0;$('no-matches').hidden=!state.loaded||!works.length||results.length>0;
-  $('collection-pagination').hidden=!results.length;$('visible-count').textContent=`${visible.length} of ${results.length}`;$('show-more-runs').hidden=visible.length>=results.length;updateLaunch();
+  $('collection-pagination').hidden=!results.length;$('visible-count').textContent=`${visible.length} of ${results.length}`;$('show-more-runs').hidden=visible.length>=results.length;
 }
-async function loadRuns(){state.runs=(await request('/api/runs')).runs||[];renderLibrary();}
 async function refresh(){
   if(state.refreshing)return;state.refreshing=true;$('refresh-runs').disabled=true;
   try{
@@ -98,57 +73,16 @@ async function refresh(){
     pageError(failures.length?failures[0].reason.message:'');renderLibrary();
   }finally{state.refreshing=false;$('refresh-runs').disabled=false;clearTimeout(state.timer);state.timer=setTimeout(()=>{if(!document.hidden)refresh();},state.runs.some(isActive)?3000:15000);}
 }
-async function openSetup(opener){
-  state.setupReturn=opener;state.setupReady=false;state.setupLoading=true;$('launch-error').hidden=true;updateLaunch();$('setup-dialog').showModal();$('setup-title').focus({preventScroll:true});
-  const results=await Promise.allSettled([loadProvider(),loadSources(),loadRuns()]);state.setupReady=results.every(r=>r.status==='fulfilled');state.setupLoading=false;$('connection-settings').open=!state.provider?.configured;
-  if(!state.setupReady){$('launch-error').textContent=results.find(r=>r.status==='rejected').reason.message;$('launch-error').hidden=false;}updateLaunch();
-}
-function pendingRun(){const pending=state.pendingLaunch;return pending&&state.runs.find(run=>!pending.ids.has(run.id)&&Object.entries(pending.spec).every(([key,value])=>run.spec?.[key]===value));}
-async function acceptStartedWork(run){
-  state.pendingLaunch=null;$('launch-error').hidden=true;state.setupReturn=null;$('setup-dialog').close();
-  state.runs=[run,...state.runs.filter(r=>r.id!==run.id)];state.loaded=true;renderLibrary();$('launch-confirmation').textContent=`${workLabel(run.id)} started. Return here for the finished work.`;
-  const row=[...$('pending-list').children].find(node=>node.dataset.pendingId===run.id);if(row)row.focus();else state.cards.get(run.id)?.focus();
-}
-for(const button of document.querySelectorAll('[data-open-setup]'))button.addEventListener('click',()=>openSetup(button));
-$('close-setup').addEventListener('click',()=>{if(!state.launching)$('setup-dialog').close();});
-$('setup-dialog').addEventListener('cancel',event=>{if(state.launching)event.preventDefault();});
-$('setup-dialog').addEventListener('close',()=>{$('api-key').value='';state.setupReturn?.focus({preventScroll:true});});
-$('fixed-prompt').textContent=TASK;
 $('run-search').addEventListener('input',event=>{state.query=event.target.value.trim().toLocaleLowerCase();state.visibleLimit=PAGE_SIZE;renderLibrary();});
 $('model-filter').addEventListener('change',event=>{state.model=event.target.value;state.visibleLimit=PAGE_SIZE;renderLibrary();});
 $('status-filter').addEventListener('change',event=>{state.status=event.target.value;state.visibleLimit=PAGE_SIZE;renderLibrary();});
 $('clear-filters').addEventListener('click',()=>{state.query='';state.model='';state.status='all';state.visibleLimit=PAGE_SIZE;$('run-search').value='';$('model-filter').value='';$('status-filter').value='all';renderLibrary();$('run-search').focus();});
 $('show-more-runs').addEventListener('click',()=>{const previous=state.visibleLimit;state.visibleLimit+=PAGE_SIZE;renderLibrary();$('run-list').children[previous]?.focus({preventScroll:true});});
-$('model').addEventListener('input',updateLaunch);
-$('key-form').addEventListener('submit',async event=>{
-  event.preventDefault();let apiKey=$('api-key').value.trim();if(!apiKey||state.credentialBusy)return;state.credentialBusy=true;$('api-key').value='';renderProvider();connectionMessage('Connecting…');
-  try{await request('/api/providers/openai',{method:'POST',body:{apiKey}});apiKey='';await loadProvider();connectionMessage('Key saved for this session. Test connection to verify access.');}
-  catch{connectionMessage('Could not connect. Check the server and API key.',true);}finally{apiKey='';state.credentialBusy=false;renderProvider();}
-});
-$('test-connection').addEventListener('click',async()=>{
-  if(state.credentialBusy)return;state.credentialBusy=true;renderProvider();connectionMessage('Checking access…');
-  try{const result=await request('/api/providers/openai/test',{method:'POST',body:{},timeout:65000});const fragment=document.createDocumentFragment();for(const model of result.models||[]){const option=element('option');option.value=typeof model==='string'?model:model.id;if(option.value)fragment.append(option);}$('available-models').replaceChildren(fragment);connectionMessage(`Connected. ${result.models?.length||0} models listed.`);}
-  catch{connectionMessage('Connection test failed. Check your key, account access, and network.',true);}finally{state.credentialBusy=false;renderProvider();}
-});
-$('forget-key').addEventListener('click',async()=>{
-  if(state.credentialBusy)return;state.credentialBusy=true;renderProvider();
-  try{await request('/api/providers/openai',{method:'DELETE'});await loadProvider();$('available-models').replaceChildren();connectionMessage(state.provider?.configured?'Session key removed. Using the server key.':'Session key removed.');}
-  catch{connectionMessage('Could not remove the key. Check the server.',true);}finally{state.credentialBusy=false;renderProvider();}
-});
-$('run-form').addEventListener('submit',async event=>{
-  event.preventDefault();if(state.launching||$('launch-run').disabled||!$('run-form').reportValidity())return;
-  state.launching=true;$('launch-error').hidden=true;const spec={provider:'openai',model:$('model').value.trim(),prompt:TASK,...LIMITS};state.pendingLaunch={spec,ids:new Set(state.runs.map(run=>run.id))};updateLaunch();
-  try{const result=await request('/api/runs',{method:'POST',body:spec});if(!result.run?.id)throw new Error('No work ID returned. Check whether it started.');await acceptStartedWork(result.run);}
-  catch(error){if(error.status>=400&&error.status<500)state.pendingLaunch=null;$('launch-error').textContent=error.message;$('launch-error').hidden=false;await loadRuns().catch(()=>{});const recovered=pendingRun();if(recovered)await acceptStartedWork(recovered);}
-  finally{state.launching=false;updateLaunch();clearTimeout(state.timer);state.timer=setTimeout(refresh,1500);}
-});
-$('check-launch').addEventListener('click',async()=>{
-  if(state.checkingLaunch)return;state.checkingLaunch=true;updateLaunch();
-  try{await loadRuns();const recovered=pendingRun();if(recovered)await acceptStartedWork(recovered);else{$('launch-error').textContent='Not confirmed yet. Check again shortly; the first request may still be processing.';$('launch-error').hidden=false;}}
-  catch(error){$('launch-error').textContent=error.message;$('launch-error').hidden=false;}finally{state.checkingLaunch=false;updateLaunch();}
-});
 function retry(){for(const card of state.cards.values()){const image=card.querySelector('img');if(image.hidden)image.removeAttribute('src');}refresh();}
 $('refresh-runs').addEventListener('click',retry);$('retry-load').addEventListener('click',retry);
 document.addEventListener('visibilitychange',()=>{if(document.hidden)clearTimeout(state.timer);else refresh();});
-window.addEventListener('pagehide',()=>{clearTimeout(state.timer);$('api-key').value='';});
+window.addEventListener('pagehide',()=>clearTimeout(state.timer));
 refresh();
+
+const started=new URLSearchParams(location.search).get('started');
+if(started){$('launch-confirmation').textContent='Run started. Return to the library for the finished work and playback.';history.replaceState(null,'','/');}

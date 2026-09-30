@@ -6,8 +6,13 @@
   "description": "A constrained collage environment for people and AI agents.",
   "scripts": {
     "start": "node server.mjs",
-    "test": "node --test tests/*.test.mjs"
+    "test": "node --test tests/*.test.mjs",
+    "sources:import": "node scripts/import-source-pack.mjs"
   },
-  "engines": { "node": ">=22" },
-  "dependencies": { "sharp": "^0.35.4" }
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "sharp": "^0.35.4"
+  }
 }

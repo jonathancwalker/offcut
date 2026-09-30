@@ -166,6 +166,8 @@ function renderFacts() {
   fact(facts,'Actions',budget(state.frames.length - 1,run.spec?.maxActions));
   fact(facts,'Fragments',budget(state.fragments.length,run.spec?.maxPieces));
   if (run.turns !== undefined && run.turns !== null) fact(facts,'Turns',budget(run.turns,run.spec?.maxTurns));
+  if (Number.isFinite(run.spec?.maxMinutes)) fact(facts,'Time limit',`${number(run.spec.maxMinutes)} min`);
+  if (Number.isFinite(run.spec?.maxOutputTokens)) fact(facts,'Output limit / turn',`${number(run.spec.maxOutputTokens)} tokens`);
   if (run.usage) {
     const totalTokens = run.usage.totalTokens ?? (run.usage.inputTokens || 0) + (run.usage.outputTokens || 0);
     fact(facts,'Tokens',`${number(totalTokens)}${run.usageIncomplete || run.usage.incomplete ? ' · incomplete' : ''}`);

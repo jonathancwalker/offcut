@@ -2,7 +2,7 @@ import http from 'node:http';
 import { readFile, writeFile, rename, mkdir, realpath, stat, copyFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, extname, join, resolve, sep } from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { createState, applyAction } from './lib/engine.mjs';
 import { getSharp, renderSVG, renderPNG } from './lib/render.mjs';
 import { createProviderRegistry } from './lib/providers.mjs';
@@ -25,6 +25,40 @@ const fail = (message, status) => { throw new RequestError(message, status); };
 const clone = value => structuredClone(value);
 const now = () => new Date().toISOString();
 const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
+const canonicalJSON = value => JSON.stringify(value, (_, item) => isObject(item)
+  ? Object.fromEntries(Object.keys(item).sort().map(key => [key, item[key]]))
+  : item);
+
+function sourceCatalog(sources) {
+  return sources.map(({ dataUrl, ...source }) => ({
+    ...source,
+    sha256: sha256(decodeRaster(dataUrl)),
+    previewUrl: `/api/sources/${encodeURIComponent(source.id)}`,
+  }));
+}
+
+function selectedSources(sources, body) {
+  if (body.sourceIds === undefined) {
+    if (body.sourceHashes !== undefined) fail('Choose source images before supplying their hashes.');
+    return clone(sources);
+  }
+  const ids = body.sourceIds;
+  if (!Array.isArray(ids) || ids.length < 1 || ids.length > MAX_SOURCES
+    || ids.some(id => typeof id !== 'string' || !/^[a-zA-Z0-9_-]{1,100}$/.test(id))
+    || new Set(ids).size !== ids.length) fail(`Choose between 1 and ${MAX_SOURCES} different source images.`);
+  if (!isObject(body.sourceHashes) || Object.keys(body.sourceHashes).length !== ids.length
+    || ids.some(id => !Object.hasOwn(body.sourceHashes, id) || typeof body.sourceHashes[id] !== 'string' || !/^[a-f0-9]{64}$/.test(body.sourceHashes[id]))) {
+    fail('Supply one SHA-256 hash for each selected source image, with no extra hashes.');
+  }
+  const inventory = new Map(sources.map(source => [source.id, source]));
+  return ids.map(id => {
+    const source = inventory.get(id);
+    if (!source) fail('A selected image is no longer available. Refresh the materials and review your selection.', 409);
+    if (sha256(decodeRaster(source.dataUrl)) !== body.sourceHashes[id]) fail('A selected image has changed. Refresh the materials and review your selection.', 409);
+    return clone(source);
+  });
+}
 
 function sendJSON(response, status, value) {
   response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
@@ -145,6 +179,7 @@ export const API_HELP = {
     'GET /api/state': 'Current state, history, cursor, and undo/redo availability. Add ?step=N to inspect the state after N actions (0 is an empty canvas). Reading a past step does not move the live cursor.',
     'GET /api/status': 'Lightweight polling endpoint: {revision,cursor,updatedAt}. Fetch /api/state only when its revision changes.',
     'GET /api/sources/:id': 'Read an original source image.',
+    'GET /api/source-catalog': 'List source metadata, SHA-256 hashes of original image bytes, preview URLs, and the source limit. Image bytes are not embedded.',
     'POST /api/actions': 'Submit one action object or {actions:[action,...]}. A batch is atomic: if any action fails, none are saved.',
     'GET /api/render.png': 'Rendered composition. Add ?step=N for a replay image.',
     'GET /api/render.svg': 'Self-contained SVG with original image fragments. Add ?step=N for replay.',
@@ -155,7 +190,7 @@ export const API_HELP = {
     'GET /api/project': 'Download the full portable project, including sources and action history.',
     'POST /api/project': 'Import a previously exported project. Every action is replayed and checked before the current worktable is replaced.',
     'GET /api/providers': 'List available provider connections without exposing API keys.',
-    'POST /api/runs': 'Start an isolated blank experiment using a frozen copy of the current source inventory. Supply provider, model, prompt, and optional bounded run limits.',
+    'POST /api/runs': 'Start an isolated blank run. Supply provider, model, prompt, and optional bounded limits. Optional sourceIds selects 1–24 images in order and requires an exact sourceHashes map from /api/source-catalog; omitted selection uses all current sources. Optional UUID clientRequestId durably deduplicates an identical launch; retries return the original run, including after a server restart. Reusing that identifier with different settings returns 409.',
     'GET /api/runs': 'List saved experiments and their progress.',
     'GET /api/runs/:id/events': 'Read observations, requests, returned model output, batch results and termination events.',
     'GET /api/runs/:id/export': 'Download the complete run bundle with deduplicated observation images and replayable project.',
@@ -263,6 +298,7 @@ export async function createApp({ publicDir = join(ROOT, 'public'), dataDir = jo
       const url = new URL(request.url, 'http://127.0.0.1');
       const path = url.pathname;
       if (request.method === 'GET' && path === '/api/providers') return sendJSON(response, 200, providerRegistry.list());
+      if (request.method === 'GET' && path === '/api/source-catalog') return sendJSON(response, 200, { sources: sourceCatalog(project.sources), limits: { maxSources: MAX_SOURCES } });
       const providerRoute = /^\/api\/providers\/(openai)(\/test)?$/.exec(path);
       if (providerRoute) {
         const id = providerRoute[1];
@@ -276,8 +312,23 @@ export async function createApp({ publicDir = join(ROOT, 'public'), dataDir = jo
       if (path === '/api/runs') {
         if (request.method === 'GET') return sendJSON(response, 200, { runs: await runs.list() });
         if (request.method === 'POST') {
-          const spec = await readJSON(request);
-          const run = await serialized(() => runs.start({ spec, sources: clone(project.sources) }));
+          const body = await readJSON(request);
+          if (!isObject(body)) fail('A run spec is required.');
+          const { sourceIds, sourceHashes, clientRequestId, ...spec } = body;
+          if (clientRequestId !== undefined && (typeof clientRequestId !== 'string' || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(clientRequestId))) fail('clientRequestId must be a UUID.');
+          const requestFingerprint = clientRequestId === undefined ? null : sha256(canonicalJSON(body));
+          const run = await serialized(async () => {
+            if (clientRequestId !== undefined) {
+              const existing = (await runs.list()).find(run => run.launch?.clientRequestId === clientRequestId);
+              if (existing) {
+                if (existing.launch.requestFingerprint !== requestFingerprint) fail('This launch identifier was already used with different settings. Start a new run to change them.', 409);
+                return existing;
+              }
+            }
+            const sources = selectedSources(project.sources, { sourceIds, sourceHashes });
+            const launch = clientRequestId === undefined ? undefined : { clientRequestId, requestFingerprint };
+            return runs.start({ spec, sources, launch });
+          });
           return sendJSON(response, 202, { run });
         }
         fail('Method not allowed.', 405);
