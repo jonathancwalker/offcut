@@ -6,7 +6,13 @@ const runId = new URL(location.href).searchParams.get('run');
 const isArchive = Boolean(runId?.startsWith('archive-'));
 const identity = runId ? `Work · ${isArchive ? `A${runId.slice('archive-'.length)}` : runId.replace(/^run-/, '').slice(0, 8)}` : 'Work';
 const base = runId ? `/api/${isArchive ? 'archives' : 'runs'}/${encodeURIComponent(runId)}` : '';
-const state = { run:null, project:null, frames:[], fragments:[], step:0, playing:false, playbackTimer:null, playbackVersion:0, pollTimer:null, refreshing:false, stopping:false, imageVersion:0, imageReady:Promise.resolve(), clipId:0, notesLoaded:false, notesLoading:false, dialogOpener:null };
+const playbackRates = [0.5, 1, 2, 4, 8];
+const playbackRateKey = 'offcut.playbackRate';
+function savedPlaybackRate() {
+  try { const rate = Number(localStorage.getItem(playbackRateKey)); if (playbackRates.includes(rate)) return rate; } catch { /* Playback also works when storage is unavailable. */ }
+  return 2;
+}
+const state = { run:null, project:null, frames:[], fragments:[], step:0, playing:false, playbackRate:savedPlaybackRate(), playbackTimer:null, playbackVersion:0, pollTimer:null, refreshing:false, stopping:false, imageVersion:0, imageReady:Promise.resolve(), clipId:0, notesLoaded:false, notesLoading:false, dialogOpener:null };
 const statusNames = { running:'Working', completed:'Completed', archived:'Archived', stopped:'Stopped', failed:'Failed', interrupted:'Interrupted', limit_reached:'Limit reached' };
 const terminationMessages = {
   time_limit:'Time limit reached. The saved work and its playback are shown here.',
@@ -206,6 +212,8 @@ function renderPlayback() {
   $('play-work').disabled = maximum === 0;
   $('play-work').textContent = state.playing ? 'Ⅱ Pause' : '▶ Play';
   $('play-work').setAttribute('aria-label',state.playing ? 'Pause playback' : 'Play the making of this work');
+  $('playback-speed').value = String(state.playbackRate);
+  $('playback-speed').disabled = maximum === 0;
   $('previous-step').disabled = state.step === 0;
   $('next-step').disabled = state.step === maximum;
   $('final-step').disabled = state.step === maximum;
@@ -256,7 +264,7 @@ async function advancePlayback(version) {
     if (state.step >= state.frames.length - 1) return stopPlayback();
     setStep(state.step + 1);
     advancePlayback(version);
-  },650);
+  },650 / state.playbackRate);
 }
 function openMaterial(source,fragment,opener) {
   stopPlayback();
@@ -366,6 +374,16 @@ $('play-work').addEventListener('click',() => {
   state.playing = true;
   if (state.step >= state.frames.length - 1) setStep(0); else renderPlayback();
   advancePlayback(++state.playbackVersion);
+});
+$('playback-speed').addEventListener('change',event => {
+  const rate = Number(event.target.value);
+  if (!playbackRates.includes(rate)) return;
+  state.playbackRate = rate;
+  try { localStorage.setItem(playbackRateKey,String(rate)); } catch { /* Remembering the preference is optional. */ }
+  if (state.playing) {
+    clearTimeout(state.playbackTimer);
+    advancePlayback(++state.playbackVersion);
+  }
 });
 $('work-timeline').addEventListener('input',event => { const step = event.target.value; stopPlayback(); setStep(step); });
 $('previous-step').addEventListener('click',() => { stopPlayback(); setStep(state.step - 1); });
