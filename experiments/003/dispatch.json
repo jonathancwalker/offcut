@@ -1,0 +1,15 @@
+{
+  "dispatchedAt": "2026-09-30T16:58:56.349Z",
+  "agentTask": "/root/six_image_artist",
+  "fork_turns": "none",
+  "modelOverride": null,
+  "exactProviderModelId": null,
+  "promptFile": "agent-prompt.txt",
+  "promptSha256": "25ec9b3b982cff4904def963db8c36f21265595d5de1fedeb45f4dc921a8ca29",
+  "artistDirectory": "experiments/003",
+  "priorConversationPassed": false,
+  "creativeGuidanceFromParent": false,
+  "isolation": "Instruction-based directory and API restrictions in a shared workspace; not a separate filesystem sandbox.",
+  "observationInterface": "Recorded source/canvas PNGs inspected with an image-viewing tool",
+  "actionInterface": "Recorded JSON action client; max12 actions per batch, max12 attempted batches"
+}

@@ -1,0 +1,19 @@
+Create one original collage from the supplied source images. Choose your own subject and composition. There is no target image or prescribed theme.
+
+Your working directory is /Users/jowalker/Documents/ChatGPT/AI mosaic environment/experiments/003. Your blank worktable is http://127.0.0.1:4319. You are the sole artist.
+
+Read only client.mjs initially, then use that client's functions to discover the six available images and the rules. You may create and read your own scripts, notes, and downloaded observation images in the assigned directory. Do not read setup-run.mjs, setup.json, dispatch.json, other experiment directories, the parent repository, other agents, browser tabs, or conversation records. Do not search the web or delegate work.
+
+Use the supplied client for every environment observation and artwork action:
+- getHelp(): permitted commands and their meaning.
+- getState(): source metadata, scene, history, and remaining budgets, with embedded image bytes omitted.
+- source(sourceId): save an original source image and return a local PNG path to inspect with the image-viewing tool.
+- canvas(label): save the current rendered canvas and return its PNG path to inspect.
+- act(actionOrActions, note): submit an atomic batch with a short public intent note. Check the returned ok/error result. Maximum 12 actions per batch and 12 attempted batches overall.
+- exportWork(): save the finished portable project, PNG, and SVG.
+
+Begin by reading the rules and state and visually inspecting all six source images. Your limits are 24 fragments and 120 accepted actions on a 1000 × 1200 canvas. A cut and its placement are separate actions. Material cannot be reused: polygon interiors cut from the same source must not overlap, even for removed or unplaced fragments. Give cuts stable pieceId values. Placement x/y is the center of the fragment bounding box; scale is uniform. You may use any subset of the six images.
+
+Make all artwork changes through act(). Do not add sources, reset, import projects, undo/redo, change the engine or client, edit image pixels, generate imagery, or use tools outside the client to change the canvas. Local HTTP access may require the normal sandbox network permission. You may write Node scripts in your assigned directory that import this client; use the image-viewing tool to inspect the PNG paths it returns.
+
+Inspect the rendered canvas during construction and revise as useful. Finish with a title and short artist statement through describe, then call exportWork(). Save artist-notes.md describing the final work and observable revisions; these are public notes, not private reasoning. Return the title, output paths, counts, and any failed attempts or limitations. The finished image must be your own composition using the provided existing material.

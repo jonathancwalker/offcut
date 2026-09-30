@@ -1,0 +1,291 @@
+{
+  "createdAt": "2026-09-30T16:57:05.327Z",
+  "kind": "fresh-context-codex-subagent",
+  "forkTurns": "none",
+  "modelOverride": null,
+  "exactModelId": null,
+  "selection": {
+    "method": "Six uniform crypto.randomInt draws without replacement; no rerolls.",
+    "candidateCount": 21,
+    "candidates": [
+      {
+        "id": "botanical",
+        "name": "Marsh marigold · 1896",
+        "width": 989,
+        "height": 1500,
+        "credit": "Edward Step / Favourite Flowers (1896), via Wikimedia Commons",
+        "sha256": "675ef9fa81611d12b012173feaaf81b594413a658f00ddc6e6ce15d0e0e2336e"
+      },
+      {
+        "id": "city",
+        "name": "The Flatiron · New York",
+        "width": 812,
+        "height": 1024,
+        "credit": "Detroit Publishing Co. / Library of Congress",
+        "sha256": "0b0a5ca3c49a9dd77a74140fcb829e31a6bfda33b27330ed7bc4923b1839cca4"
+      },
+      {
+        "id": "cosmos",
+        "name": "Earthrise · Apollo 8",
+        "width": 1500,
+        "height": 1500,
+        "credit": "NASA / Apollo 8 (1968)",
+        "sha256": "f61370651d76a4accd747b331e07aff5488502a7c16142124dacc49eff8f09d0"
+      },
+      {
+        "id": "source-14993d49-f8b",
+        "name": "American Flamingo",
+        "width": 629,
+        "height": 900,
+        "credit": "John James Audubon, American Flamingo, The Birds of America, plate 431 (1827–1838). University of Pittsburgh / Wikimedia Commons.",
+        "url": "https://commons.wikimedia.org/wiki/File:431_American_Flamingo.jpg",
+        "license": "Public domain",
+        "sha256": "84a97fa5eb057abec3ac5536b9e4dacbb2c115c71ef6d6ac6a0e4a5f2807b444"
+      },
+      {
+        "id": "source-204990ba-45a",
+        "name": "Moulin Rouge poster",
+        "width": 555,
+        "height": 900,
+        "credit": "Henri de Toulouse-Lautrec, French, 1864-1901. Moulin Rouge, La Goulue, 1891. Art Institute of Chicago; Mr. and Mrs. Carter H. Harrison Collection. Digital image courtesy of the Art Institute of Chicago.",
+        "url": "https://www.artic.edu/artworks/82287",
+        "license": "CC0 1.0 (public domain)",
+        "sha256": "825bc12a3456519e2d9155379b3a81dfb6bb7bce15be0337d92ad72ef8e1101a"
+      },
+      {
+        "id": "source-73216d06-535",
+        "name": "Frederick Douglass · 1870",
+        "width": 584,
+        "height": 900,
+        "credit": "Schreiber, George Francis, 1803-1892 / Library of Congress",
+        "url": "https://www.loc.gov/pictures/item/2004671911/",
+        "license": "No known restrictions on publication",
+        "sha256": "65c99bec1405eaa17d5b5e281ad278bbebcd282c9e289112d14d25400d306004"
+      },
+      {
+        "id": "source-d87d363d-40c",
+        "name": "Sea Anemones",
+        "width": 642,
+        "height": 900,
+        "credit": "Ernst Haeckel, Actiniae, Kunstformen der Natur, plate 49 (1904). Wikimedia Commons.",
+        "url": "https://commons.wikimedia.org/wiki/File:Haeckel_Actiniae.jpg",
+        "license": "Public domain",
+        "sha256": "dd4f518b75c38e97059a02608e6dae1b6d8a1b1cbdd9d546d5c595987f76d986"
+      },
+      {
+        "id": "source-af15b768-946",
+        "name": "Cray textile",
+        "width": 359,
+        "height": 900,
+        "credit": "Designed by William Morris (English, 1834–1896), Produced by Morris & Co., London (English, 1875–1940), Merton Abbey, London (English, 1881–1940). Cray, Design 1884, made 1884–1917. Art Institute of Chicago; Gift of Mrs. Charles F. Batchelder. Digital image courtesy of the Art Institute of Chicago.",
+        "url": "https://www.artic.edu/artworks/47661",
+        "license": "CC0 1.0 (public domain)",
+        "sha256": "a19768aa119ac50a47419f17c1efd8a2a6ad51f45659d4e5c39af76626008acc"
+      },
+      {
+        "id": "source-70d18408-d02",
+        "name": "Venice · c. 1890",
+        "width": 673,
+        "height": 900,
+        "credit": "Creator not recorded / Library of Congress",
+        "url": "https://www.loc.gov/pictures/item/2001701038/",
+        "license": "No known restrictions on reproduction",
+        "sha256": "04dead2cf16487c776c9c47443f7cf5acc0913d4668900e5aa6c3e93278b4c99"
+      },
+      {
+        "id": "source-5827b5ad-bf2",
+        "name": "Jewel Beetles & Canna",
+        "width": 703,
+        "height": 900,
+        "credit": "Edward Donovan, Natural history of the insects of China, plate 7 (1838). North Carolina State University Libraries / Biodiversity Heritage Library / Wikimedia Commons.",
+        "url": "https://commons.wikimedia.org/wiki/File:Donovan_-_Insects_of_China,_1838_-_pl_07.jpg",
+        "license": "Public domain",
+        "sha256": "bc22d657be30f620451a64e8c9a1905254d522314426c2f24533f1b668c1d18a"
+      },
+      {
+        "id": "source-f513d7c6-b6f",
+        "name": "Clockwork gears",
+        "width": 665,
+        "height": 900,
+        "credit": "Diderot and d’Alembert, Encyclopédie, Recueil de Planches, volume 3. Scan credited to Gallica; Wikimedia Commons file Encyclopedie_volume_3-350.png.",
+        "url": "https://commons.wikimedia.org/wiki/File:Encyclopedie_volume_3-350.png",
+        "license": "Public domain (PD-old-100-expired)",
+        "sha256": "9cc086087a694e12bc04d1d6cb25e7471344b56cceca55b1dfcb0646635c63af"
+      },
+      {
+        "id": "source-3481817c-bec",
+        "name": "Boarding an airship · 1915–25",
+        "width": 900,
+        "height": 662,
+        "credit": "Detroit Publishing Co. / Library of Congress",
+        "url": "https://www.loc.gov/pictures/item/2016816903/",
+        "license": "No known restrictions on publication",
+        "sha256": "7133d6e6e66f6c5ffdfa2b9c981de18e0379a1bdfca6f47cfa20a4131f90fece"
+      },
+      {
+        "id": "source-64c15ce7-cde",
+        "name": "Red Mullet",
+        "width": 900,
+        "height": 532,
+        "credit": "Georges Cuvier and Achille Valenciennes, Histoire naturelle des poissons, plate 70 (1828–1849). Biodiversity Heritage Library / Wikimedia Commons.",
+        "url": "https://commons.wikimedia.org/wiki/File:Histoire_naturelle_des_poissons_(Pl._70)_(7949959338).jpg",
+        "license": "Public domain",
+        "sha256": "f16122ebe13c09f724b1714835da2b379c4e7932486bc920cefb1506abfd5642"
+      },
+      {
+        "id": "source-db6d4fdf-70f",
+        "name": "Chicago growth map",
+        "width": 707,
+        "height": 900,
+        "credit": "Daniel Hudson Burnham (American, 1846-1912), Edward Herbert Bennett (American, born England, 1874-1954). Plan of Chicago, Chicago, Illinois, Diagram Showing City Growth, 1909. Art Institute of Chicago; On permanent loan to The Art Institute of Chicago from the City of Chicago. Digital image courtesy of the Art Institute of Chicago.",
+        "url": "https://www.artic.edu/artworks/196347",
+        "license": "CC0 1.0 (public domain)",
+        "sha256": "4ad9081ee4324f3c5e7b93c6f3013ca550a91c86f28952a8621eb27ce10cf898"
+      },
+      {
+        "id": "source-e0391404-755",
+        "name": "Fruit & cantaloupe · c. 1880",
+        "width": 900,
+        "height": 692,
+        "credit": "William Mason Brown / The Cleveland Museum of Art, Andrew R. and Martha Holden Jennings Fund",
+        "url": "https://clevelandart.org/art/1969.20",
+        "license": "CC0 1.0",
+        "sha256": "140216690eb3223947912bcb88bf7b50a59d4cb301bb8ad874e37d965c5f929f"
+      },
+      {
+        "id": "source-1ec2d5b8-8ca",
+        "name": "Fungi",
+        "width": 635,
+        "height": 900,
+        "credit": "Ernst Haeckel, Basimycetes, Kunstformen der Natur, plate 63 (1904). Wikimedia Commons.",
+        "url": "https://commons.wikimedia.org/wiki/File:Haeckel_Basimycetes.jpg",
+        "license": "Public domain",
+        "sha256": "cab2dce28ee5d1f499071b4502b2413a275d12e92efaae3969884bcbdba56f9f"
+      },
+      {
+        "id": "source-72169126-28e",
+        "name": "Opera-house stencil design",
+        "width": 661,
+        "height": 900,
+        "credit": "Peter Bonnett Wight, American, 1838–1925. Ottawa Opera House, Ottawa, Illinois, Wall Stencil Design, c. 1875. Art Institute of Chicago; Gift of Peter Bonnett Wight. Digital image courtesy of the Art Institute of Chicago.",
+        "url": "https://www.artic.edu/artworks/154879",
+        "license": "CC0 1.0 (public domain)",
+        "sha256": "51bf441175c5167dcfea201e468cb01cc28b305ce46f41bcc4bca133f9b1096e"
+      },
+      {
+        "id": "source-fad2f0a0-2c3",
+        "name": "Brooklyn Bridge · 1901",
+        "width": 900,
+        "height": 464,
+        "credit": "Underwood & Underwood. / Library of Congress",
+        "url": "https://www.loc.gov/pictures/item/2017649330/",
+        "license": "No known restrictions on publication",
+        "sha256": "562031572d54c0e64075c78ba7cdf31ffe128b6c4fea189d5b77270887ea772b"
+      },
+      {
+        "id": "source-b628863c-ec8",
+        "name": "Shells",
+        "width": 900,
+        "height": 731,
+        "credit": "John Hill; B. Cole, engraver. Plate 8: Shell Fish (Series 2) (1752). Courtesy of Science History Institute.",
+        "url": "https://digital.sciencehistory.org/works/a6l3r5f",
+        "license": "Public domain",
+        "sha256": "3d3d75d11de95c3404bc2b026574305583c9b22f3a8895f9f2224d943d37c098"
+      },
+      {
+        "id": "source-8fe1d3dc-00f",
+        "name": "Weaving manual title page",
+        "width": 731,
+        "height": 900,
+        "credit": "P. Audibert (French, active c. 1869 ) and A. Seris (French, active c. 1869), France. Cours de Théorie pour la Tissage, 1869. Art Institute of Chicago; Gift of Mrs. Chauncey B. Borland. Digital image courtesy of the Art Institute of Chicago.",
+        "url": "https://www.artic.edu/artworks/63750",
+        "license": "CC0 1.0 (public domain)",
+        "sha256": "47b051a431e37518e54ef593e53f89a3d5a4394d9636b805d4943d35fba5365e"
+      },
+      {
+        "id": "source-e20bc325-95e",
+        "name": "A crowd in the surf · 1903",
+        "width": 900,
+        "height": 474,
+        "credit": "Rau, William Herman, 1855-1920 / Library of Congress",
+        "url": "https://www.loc.gov/pictures/item/2003688949/",
+        "license": "No known restrictions on publication",
+        "sha256": "e631b44ebe1d054752c90e10e3a024a2e8ca09211e41763b67a45702686b9c46"
+      }
+    ],
+    "draws": [
+      {
+        "draw": 1,
+        "remainingPoolSize": 21,
+        "index": 17,
+        "sourceId": "source-fad2f0a0-2c3"
+      },
+      {
+        "draw": 2,
+        "remainingPoolSize": 20,
+        "index": 15,
+        "sourceId": "source-1ec2d5b8-8ca"
+      },
+      {
+        "draw": 3,
+        "remainingPoolSize": 19,
+        "index": 16,
+        "sourceId": "source-b628863c-ec8"
+      },
+      {
+        "draw": 4,
+        "remainingPoolSize": 18,
+        "index": 11,
+        "sourceId": "source-3481817c-bec"
+      },
+      {
+        "draw": 5,
+        "remainingPoolSize": 17,
+        "index": 5,
+        "sourceId": "source-73216d06-535"
+      },
+      {
+        "draw": 6,
+        "remainingPoolSize": 16,
+        "index": 10,
+        "sourceId": "source-64c15ce7-cde"
+      }
+    ],
+    "selectedIds": [
+      "source-fad2f0a0-2c3",
+      "source-1ec2d5b8-8ca",
+      "source-b628863c-ec8",
+      "source-3481817c-bec",
+      "source-73216d06-535",
+      "source-64c15ce7-cde"
+    ],
+    "selectedHashes": {
+      "source-73216d06-535": "65c99bec1405eaa17d5b5e281ad278bbebcd282c9e289112d14d25400d306004",
+      "source-3481817c-bec": "7133d6e6e66f6c5ffdfa2b9c981de18e0379a1bdfca6f47cfa20a4131f90fece",
+      "source-64c15ce7-cde": "f16122ebe13c09f724b1714835da2b379c4e7932486bc920cefb1506abfd5642",
+      "source-1ec2d5b8-8ca": "cab2dce28ee5d1f499071b4502b2413a275d12e92efaae3969884bcbdba56f9f",
+      "source-fad2f0a0-2c3": "562031572d54c0e64075c78ba7cdf31ffe128b6c4fea189d5b77270887ea772b",
+      "source-b628863c-ec8": "3d3d75d11de95c3404bc2b026574305583c9b22f3a8895f9f2224d943d37c098"
+    }
+  },
+  "constraints": {
+    "canvas": {
+      "width": 1000,
+      "height": 1200,
+      "background": "#f6f1e7"
+    },
+    "rules": {
+      "maxPieces": 24,
+      "maxActions": 120,
+      "minArea": 100,
+      "maxVertices": 16,
+      "minScale": 0.15,
+      "maxScale": 3
+    },
+    "maxActionsPerBatch": 12,
+    "maxBatches": 12,
+    "modelCallTokenLimit": null,
+    "wallClockLimit": null
+  },
+  "mainProjectSha256": "9a84a7cc8306c13752d7e270547040ecdb8fab367f699309183649c28674570c"
+}
