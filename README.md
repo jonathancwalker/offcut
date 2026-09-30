@@ -88,11 +88,12 @@ Work saves automatically to `.data/session.json` after every accepted mutation. 
 The default canvas is 1000 × 1200 pixels with a plain paper-colored background. Every artwork fragment refers to an original raster image plus a polygon in that image's coordinates. The renderer clips and transforms that source; it does not generate artwork pixels, paint, recolor, blend, add typography, or stretch non-uniformly. Rotation and resizing use normal image resampling, so this is provenance-preserving composition rather than a promise of identical output RGB values after resampling.
 
 - Standard runs and the developer studio default to **24 cut fragments** and **120 successful actions**. Other model runs use their selected budget.
-- Cuts are simple polygons with 3–16 corners, at least 100 square source pixels, fully inside a source image.
+- New runs and canvases allow simple polygons with 3–64 corners, at least 100 square source pixels, fully inside a source image. Existing projects, runs, and archives retain their saved vertex limits.
 - Polygon boundaries may touch, but their interiors cannot overlap on the same source.
 - Cutting consumes material even while the fragment is in the tray. Removing a piece does not make the original source region available again.
 - Uniform scale: 15–300%. Piece centers stay on the canvas, but edges may extend beyond it and are clipped by the final canvas.
 - Each successful cut, placement, transform, reorder, removal, or description counts as one action. A rejected action changes nothing. A submitted batch either succeeds completely or changes nothing.
+- A model must receive the latest rendered canvas before confirming completion. Edits submitted with a finish request stay accepted, then the model gets another look and may confirm or revise. This uses its existing turn budget; exhausting that budget leaves partial work. New run records use policy version 2, while earlier records preserve their original policy.
 
 This version is an **exploration environment**, not a validated creativity leaderboard. In the manual studio, undo restores the earlier action budget; editing after undo replaces the abandoned continuation. Sources may be added during a studio session, and imports may specify bounded alternate rules. Recorded model runs instead freeze their materials and rules, keep rejected attempts, and have no undo command. A comparative study still needs repeated runs, a frozen evaluation protocol and blind judgments. Observable actions and explicit decision notes do not reveal private internal reasoning.
 

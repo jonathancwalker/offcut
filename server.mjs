@@ -3,7 +3,7 @@ import { readFile, writeFile, rename, mkdir, realpath, stat, copyFile } from 'no
 import { fileURLToPath } from 'node:url';
 import { dirname, extname, join, resolve, sep } from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
-import { createState, applyAction } from './lib/engine.mjs';
+import { createState, applyAction, DEFAULT_RULES } from './lib/engine.mjs';
 import { getSharp, renderSVG, renderPNG } from './lib/render.mjs';
 import { createProviderRegistry } from './lib/providers.mjs';
 import { createRunManager } from './lib/runs.mjs';
@@ -142,7 +142,7 @@ async function loadDefaultSources(publicDir) {
 function makeProject(sources, { rules, canvas, id } = {}) {
   const initial = createState({ sources, rules, canvas, id: id ?? randomUUID() });
   if (!Number.isInteger(initial.canvas.width) || !Number.isInteger(initial.canvas.height) || initial.canvas.width < 64 || initial.canvas.height < 64 || initial.canvas.width > 4096 || initial.canvas.height > 4096) fail('Canvas dimensions must be whole numbers from 64 to 4096.');
-  if (initial.rules.maxActions > 240 || initial.rules.maxPieces > 64 || initial.rules.maxVertices > 32 || initial.rules.maxScale > 10 || initial.rules.minScale < 0.01 || initial.rules.minArea < 1) fail('These project rules exceed the worktable limits (240 actions, 64 pieces, 32 vertices, scale 0.01–10, and minimum area 1).');
+  if (initial.rules.maxActions > 240 || initial.rules.maxPieces > 64 || initial.rules.maxVertices > DEFAULT_RULES.maxVertices || initial.rules.maxScale > 10 || initial.rules.minScale < 0.01 || initial.rules.minArea < 1) fail(`These project rules exceed the worktable limits (240 actions, 64 pieces, ${DEFAULT_RULES.maxVertices} vertices, scale 0.01–10, and minimum area 1).`);
   return { format: FORMAT, version: 1, id: initial.id, createdAt: now(), updatedAt: now(), sources: clone(initial.sources), rules: clone(initial.rules), canvas: clone(initial.canvas), actions: [], cursor: 0 };
 }
 

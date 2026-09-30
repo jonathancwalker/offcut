@@ -119,3 +119,59 @@ test('saved sessions restore source inventory, undone cursor, and redo actions',
   const response = await fetch(`http://127.0.0.1:${second.server.address().port}/api/redo`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
   assert.equal((await response.json()).state.pieces[0].visible, true);
 });
+
+test('detailed cuts and saved vertex rules survive project import and server restart', async t => {
+  for (const maxVertices of [64, 16]) await t.test(`${maxVertices}-vertex project`, async t => {
+    const directory = await mkdtemp(join(tmpdir(), 'scraps-vertex-rules-'));
+    const apps = [];
+    t.after(async () => {
+      await Promise.all(apps.map(app => app.close()));
+      await rm(directory, { recursive: true, force: true });
+    });
+    const first = await startServer({ port: 0, persist: true, dataDir: directory, initialSources: [await source()] });
+    apps.push(first);
+    const base = `http://127.0.0.1:${first.server.address().port}`;
+    const post = (path, body) => fetch(base + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const contour = vertices => Array.from({ length: vertices }, (_, index) => {
+      const angle = index * Math.PI * 2 / vertices;
+      const radius = index % 2 ? 20 : 30;
+      return [40 + radius * Math.cos(angle), 40 + radius * Math.sin(angle)];
+    });
+
+    const initial = await (await fetch(base + '/api/project')).json();
+    assert.equal(initial.rules.maxVertices, 64);
+    initial.rules.maxVertices = maxVertices;
+    assert.equal((await post('/api/project', initial)).status, 200);
+    const detailedCut = { ...cut, polygon: contour(maxVertices) };
+    let response = await post('/api/actions', { actions: [detailedCut, place] });
+    assert.equal(response.status, 200, JSON.stringify(await response.json()));
+    const exported = await (await fetch(base + '/api/project')).json();
+    assert.equal(exported.rules.maxVertices, maxVertices);
+    assert.deepEqual(exported.actions[0].action.polygon, detailedCut.polygon);
+
+    response = await post('/api/project', { ...exported, rules: { ...exported.rules, maxVertices: 65 } });
+    assert.equal(response.status, 400);
+    assert.match((await response.json()).error, /64 vertices/);
+    assert.equal(first.getState().rules.maxVertices, maxVertices);
+    assert.equal((await post('/api/reset', {})).status, 200);
+    response = await post('/api/project', exported);
+    assert.equal(response.status, 200, JSON.stringify(await response.json()));
+    const expected = first.getState();
+    assert.equal(expected.rules.maxVertices, maxVertices);
+    assert.deepEqual(expected.pieces[0].polygon, detailedCut.polygon);
+    await first.close();
+
+    const second = await startServer({ port: 0, persist: true, dataDir: directory, initialSources: [] });
+    apps.push(second);
+    assert.deepEqual(second.getState(), expected);
+    assert.deepEqual(second.getProject().rules, exported.rules);
+    assert.deepEqual(second.getProject().actions, exported.actions);
+    response = await fetch(`http://127.0.0.1:${second.server.address().port}/api/actions`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...detailedCut, pieceId: 'too-detailed', polygon: contour(maxVertices + 1) }),
+    });
+    assert.equal(response.status, 400);
+    assert.match((await response.json()).error, new RegExp(`3–${maxVertices} vertices`));
+    assert.deepEqual(second.getState(), expected);
+  });
+});

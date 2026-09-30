@@ -4,6 +4,11 @@ import { applyAction, createState, polygonArea, polygonsOverlap, validatePolygon
 
 const source = { id: 'page', name: 'Page', width: 100, height: 100, dataUrl: 'source-bytes', credit: 'A supplied page' };
 const rectangle = (x, y, width, height) => [[x, y], [x + width, y], [x + width, y + height], [x, y + height]];
+const contour = vertices => Array.from({ length: vertices }, (_, index) => {
+  const angle = index * Math.PI * 2 / vertices;
+  const radius = index % 2 ? 25 : 40;
+  return [50 + radius * Math.cos(angle), 50 + radius * Math.sin(angle)];
+});
 const makeState = options => createState({ sources: [source], ...options });
 const cut = (state, polygon, other = {}) => applyAction(state, { type: 'cut', sourceId: 'page', polygon, ...other });
 const throwsCode = (fn, code) => assert.throws(fn, error => error.code === code);
@@ -67,6 +72,41 @@ test('concave cuts leave their notches available and reject true intersections',
   assert.equal(state.pieces.length, 2);
   assert.equal(polygonsOverlap(lShape, rectangle(15, 15, 20, 20)), true);
   assert.equal(polygonsOverlap([...lShape].reverse(), notch), false);
+});
+
+test('detailed concave cuts preserve narrow notches and finite material', () => {
+  const comb = [[5, 5], [95, 5], [95, 85], [85, 85], [85, 25], [75, 25], [75, 85], [65, 85], [65, 25], [55, 25], [55, 85], [45, 85], [45, 25], [35, 25], [35, 85], [25, 85], [25, 25], [15, 25], [15, 85], [5, 85]];
+  const first = cut(makeState(), comb);
+  assert.deepEqual(first.pieces[0].polygon, comb);
+  const notch = rectangle(75, 25, 10, 60);
+  assert.equal(polygonsOverlap(comb, notch), false);
+  assert.equal(cut(first, notch).pieces.length, 2);
+  throwsCode(() => cut(first, rectangle(70, 40, 10, 10)), 'MATERIAL_OVERLAP');
+  throwsCode(() => cut(first, [...comb].reverse()), 'MATERIAL_OVERLAP');
+});
+
+test('new cuts accept 64 vertices, reject 65, and retain geometry checks', () => {
+  const polygon = contour(64);
+  const state = cut(makeState(), polygon);
+  assert.equal(state.rules.maxVertices, 64);
+  assert.deepEqual(state.pieces[0].polygon, polygon);
+  assert.throws(() => cut(makeState(), contour(65)), error => error.code === 'INVALID_POLYGON' && /3–64 vertices/.test(error.message));
+  throwsCode(() => cut(state, polygon), 'MATERIAL_OVERLAP');
+
+  const circle = Array.from({ length: 25 }, (_, index) => {
+    const angle = index * Math.PI * 2 / 25;
+    return [50 + 40 * Math.cos(angle), 50 + 40 * Math.sin(angle)];
+  });
+  const crossed = circle.map((_, index) => circle[(index * 2) % circle.length]);
+  assert.throws(() => cut(makeState(), crossed), error => error.code === 'INVALID_POLYGON' && /cross or touch itself/.test(error.message));
+});
+
+test('explicit legacy vertex rules remain in force', () => {
+  const initial = makeState({ rules: { maxVertices: 16 } });
+  const state = cut(initial, contour(16));
+  assert.equal(state.rules.maxVertices, 16);
+  assert.equal(state.pieces[0].polygon.length, 16);
+  assert.throws(() => cut(initial, contour(17)), error => error.code === 'INVALID_POLYGON' && /3–16 vertices/.test(error.message));
 });
 
 test('overlap detects crossing strips without interior vertices and either direction of containment', () => {
