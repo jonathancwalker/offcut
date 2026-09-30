@@ -63,6 +63,8 @@ For an existing installation, start Offcut and run `npm run sources:import`. Thi
 
 Every added image has a collection link, credit, and recorded reuse status. [Source credits](public/sources/CREDITS.md) and the [curated catalog](public/sources/curated/catalog.json) include the original downloads and exact image hashes. Added copies preserve the full image at up to 900 pixels on their longest edge; there are no generated assets, filters, or crops. Rights labels remain specific: public domain, CC0, or the Library of Congress’s “no known restrictions” advisory.
 
+To collect more images into a separate local library, run `npm run sources:collect -- --limit 100 --topics "birds,botanical,textile,architecture"`. The first collector uses Cleveland Museum of Art's image-level CC0 records, preserves provenance, skips duplicates, and checkpoints interrupted jobs. Preview the result at `.data/source-library/index.html`; continue a paused job with `npm run sources:collect -- --resume`. This larger library is not yet connected to the 24-image New run picker. See [collection commands and limits](docs/SOURCE_COLLECTION.md).
+
 ## Development studio
 
 The original manual environment remains at **http://127.0.0.1:4317/studio.html**, outside the product navigation. It is useful for developing the action environment and managing the current source inventory. Existing artwork is preserved.
