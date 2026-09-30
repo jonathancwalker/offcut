@@ -232,10 +232,14 @@ function setStep(value) {
   $('canvas-message').hidden = true;
   const image = new Image();
   state.imageReady = new Promise(resolve => {
-    image.onload = () => {
+    image.onload = async () => {
+      try { await image.decode(); }
+      catch { return image.onerror(); }
       if (version !== state.imageVersion) return resolve(false);
-      $('work-canvas').src = url;
-      $('work-canvas').alt = `${identity}, ${state.step === 0 ? 'blank canvas' : `after action ${state.step}`}`;
+      image.id = 'work-canvas'; image.className = 'work-canvas'; image.draggable = false;
+      image.alt = `${identity}, ${state.step === 0 ? 'blank canvas' : `after action ${state.step}`}`;
+      // Keep the current frame visible until its replacement is ready to paint.
+      $('work-canvas').replaceWith(image);
       $('work-stage').classList.remove('is-loading');
       $('work-stage').setAttribute('aria-busy','false');
       resolve(true);
