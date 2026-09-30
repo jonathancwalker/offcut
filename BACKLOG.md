@@ -60,9 +60,10 @@ Status: research backlog.
 
 ## Source library and public gallery
 
-Status: roadmap additions, September 27, 2026.
+Status: a 21-image credited starter pack and an on-demand Cleveland Museum of Art CC0 collector are implemented. The collector builds a separate local catalog with provenance, duplicate detection, download budgets, a preview gallery and resume checkpoints. See [collection commands](docs/SOURCE_COLLECTION.md). Connecting this larger catalog to the run picker and publishing the gallery remain.
 
 - Build a searchable, attributed discovery catalog and separate immutable experimental packs with exact source hashes.
+- Replace the shared 24-image inventory as the picker's source with the disk-backed discovery catalog; freeze only the selected material into each run.
 - Begin with curated eligible museum/archive images; expand bulk ingestion and semantic search after the run and publication formats work.
 - Publish an early browsable gallery from deliberately selected demo/run bundles, with source sheets and existing action replay.
 - Add filters for model/provider, pack, condition, authoring mode, date, constraints and status; add blind browse, comparisons and exact-step links.
