@@ -1,10 +1,22 @@
 # Offcut backlog
 
-**Current product direction — September 30, 2026:** an observer interface with Library and read-only Work pages. Model setup uses a fixed task and constraints; completed output has playback, fragment/source trays, and explicitly attributed model writing. The two early works are included as truthful archives. See [the component map](docs/PRODUCT.md). Earlier proposals below remain research/expansion ideas, not additions to the current minimal interface.
+**Current status — October 2, 2026, after PR #9:** the Library, fixed-task New run flow and read-only Work pages are implemented. The OpenAI runner supports isolated saved runs, frozen sources, native image observations, append-only events, limits, stop, export and recovery. Work pages have accepted-action playback, speed controls, GIF export, brief fragment outlines, source/fragment inspection and explicitly attributed model writing. Physical trimming preserves retained pieces, usable offcuts, holes and lineage. Three early works are included as truthful archives. See [the component map](docs/PRODUCT.md).
 
-The studio, two exploratory demonstrations and the first OpenAI experiment runner are implemented. Status notes below distinguish completed foundations from further work.
+The [product roadmap](ROADMAP.md) prioritizes library curation after the material-picker foundation, with a static public gallery preview in parallel; additional providers, comparison queues and trajectory research follow. The public gallery has not been deployed. This is an implementation proposal, not authorization for a paid run campaign. The detailed [research plan](docs/RESEARCH_PLAN.md) and [representation track](docs/REPRESENTATION_TRACK.md) remain longer-term proposals. Earlier live-canvas, prompt-editing and human-intervention ideas do not expand the next observer UI milestone.
 
-Experiment 002 adds an independent fresh-context demonstration with its prompt, observations, action events and audit. The [product roadmap](ROADMAP.md) sets the delivery sequence: experiments first, a small public preview in parallel, then a published pilot and broader community features. [The research plan](docs/RESEARCH_PLAN.md) defines proposed studies, with an accepted [numerical representation track](docs/REPRESENTATION_TRACK.md). The public gallery has not been deployed.
+## Materials and run setup
+
+Status: first picker implemented on this branch. It combines the 21 bundled starter images and 12 locally collected Cleveland images as of October 2. **120–200 varied images is the initial curation target**, not the current collection size. The collector already provides provenance, duplicate detection, download budgets, preview and resume checkpoints; see [collection commands](docs/SOURCE_COLLECTION.md).
+
+- [x] Connect the disk-backed catalog with paginated thumbnails, search, collection filters and an explicit full/filtered random pool. Keep catalog capacity separate from the studio inventory and per-run limit of 24 images/24 MiB; load only chosen source bytes into a run.
+- [x] Combine pins with an additional random count, including manual-only and random-only choices. Require at least one image overall. Inclusion does not require the artist to use an image.
+- [x] Exclude pins from the draw, prevent duplicates, surface insufficient-pool/count/byte-limit errors, and preserve pins through reshuffles.
+- [x] Review pinned/random trays and attribution; freeze exact ordered IDs, bytes and hashes. Preserve the reviewed draw through launch retries and draft restoration.
+- [x] Record the versioned recipe, seed, catalog digest and candidate ID/hash manifest. Frozen selected bytes remain authoritative for replay.
+- [ ] Curate toward 120–200 images across photography, illustration, printed pages, maps, diagrams, textiles, objects and dense scenes.
+- [ ] Add individual pool exclusions, reusable named material sets and pack management as follow-on controls.
+
+In parallel, publish a small static gallery from deliberately selected archived/recorded bundles. Additional provider routes and repeat/comparison queues, then trajectory research and a scoped pilot, follow the materials milestone. HF/self-hosted routes, community publication and learned embeddings remain later work.
 
 ## Agreed first comparison
 
@@ -12,11 +24,11 @@ Decision: September 27, 2026. Use multimodal models with image input and text/JS
 
 ## Agent trajectory playback
 
-Status: first slice implemented September 28, 2026: accepted-action playback, model activity, errors and complete run exports. Synchronized observation images, before/after detail, speed controls and turn stepping remain.
+Status: accepted-action playback, action stepping/scrubbing, speed controls, fragment outlines, GIF export, source/fragment inspection, attributed model activity, errors and complete run exports are implemented. Synchronized observation images, before/after detail, model-turn stepping and side-by-side trajectory comparison remain.
 
 Extend the existing canvas replay into a view of an agent's observable choices. The current scrubber and play/pause controls already reconstruct each accepted action, including individual actions submitted together in a batch.
 
-Acceptance criteria:
+Retained trajectory-viewer criteria, including shipped foundations and future extensions:
 
 - An append-only run log records each observation, model request and returned output, explicitly emitted short decision note, action attempt, validation response, and resulting state reference.
 - A viewer synchronizes the canvas with the exact source images and canvas snapshots made available to the agent at that point.
@@ -28,16 +40,16 @@ Acceptance criteria:
 - Export a portable run bundle containing deduplicated source images, observation images, events, and final artwork. Exclude credentials from all run artifacts.
 - Decision notes are deliberate, short explanations emitted for the record. Do not infer hidden reasoning from placement events or label a reconstruction as a captured thought process.
 
-Depends on the experiment runner and event schema below. Basic artifact playback can be prototyped before integrating multiple providers.
+Build on the existing experiment runner and event schema. Public artifact playback can ship before integrating multiple providers.
 
 ## Model-neutral experiment runner
 
-Status: first OpenAI adapter and local runner implemented September 28, 2026, with setup/key connection, isolated runs, frozen sources, native image observations, append-only events, limits, stop, export and interrupted-run recovery. Live paid inference validation remains separate from automated fixture tests. Additional adapters, run queues, resume, observation aids and dollar spending controls remain.
+Status: OpenAI is the one implemented provider, with setup/key connection, isolated runs, frozen sources, compact textual state plus native image observations, append-only events, limits, stop, export, interrupted-run recovery and launch-retry protection. Physical trimming is available under the current protocol. Additional adapters, run queues, continuation/resume, optional observation aids and dollar spending controls remain. Existing exploratory paid runs are evidence of operation, not a controlled comparison.
 
 Include the provider/key connection screen, a simple materials/models/rules setup form, isolated runs, and budget/stop controls described in the roadmap.
 
 - Separate the observation format from the action vocabulary; reuse the existing authoritative engine.
-- Add a compact observation endpoint or runner projection that omits embedded image data URLs from textual state. Attach actual images through the provider's native image-input mechanism when supported.
+- Preserve the existing compact runner projection that omits embedded image data URLs from textual state, with images attached through the provider's native image-input mechanism.
 - Use provider adapters for request formatting and response parsing. Support ordinary JSON output as well as structured tool calls; do not require a model to write or execute code.
 - Keep the runner on the same machine as the studio. It calls model providers and applies returned commands locally; the remote model does not need direct access to localhost or the desktop.
 - Freeze source inventory, initial project, rule limits, prompt, action/batch limits, and observation policy for each recorded experiment.
@@ -49,9 +61,9 @@ See [the interface design](docs/MODEL_INTERFACE.md) for the current implementati
 
 ## Multiple works and model comparison
 
-Status: research backlog.
+Status: isolated saved runs are implemented; repeat/comparison queues and controlled studies remain proposed work after materials and run setup.
 
-- Keep separate saved runs rather than reusing one mutable worktable as the run database.
+- Build queues on the existing separate saved runs and frozen specifications.
 - Run multiple independent attempts per model and material set, with shared starting conditions.
 - Support different source packs and optionally the same pack with varied prompts or constraints.
 - Compare native vision and text-assisted conditions separately unless the same assistance is supplied to both.
@@ -60,10 +72,9 @@ Status: research backlog.
 
 ## Source library and public gallery
 
-Status: a 21-image credited starter pack and an on-demand Cleveland Museum of Art CC0 collector are implemented. The collector builds a separate local catalog with provenance, duplicate detection, download budgets, a preview gallery and resume checkpoints. See [collection commands](docs/SOURCE_COLLECTION.md). Connecting this larger catalog to the run picker and publishing the gallery remain.
+Status: the starter pack, on-demand Cleveland Museum of Art CC0 collector and catalog-to-picker integration are implemented. A larger varied collection is next; the static public preview is a parallel priority. Public publishing and comparison flows remain unimplemented.
 
-- Build a searchable, attributed discovery catalog and separate immutable experimental packs with exact source hashes.
-- Replace the shared 24-image inventory as the picker's source with the disk-backed discovery catalog; freeze only the selected material into each run.
+- Extend the searchable, attributed catalog into reusable experimental packs with exact source hashes.
 - Begin with curated eligible museum/archive images; expand bulk ingestion and semantic search after the run and publication formats work.
 - Publish an early browsable gallery from deliberately selected demo/run bundles, with source sheets and existing action replay.
 - Add filters for model/provider, pack, condition, authoring mode, date, constraints and status; add blind browse, comparisons and exact-step links.
@@ -73,4 +84,4 @@ Status: a 21-image credited starter pack and an on-demand Cleveland Museum of Ar
 
 ## Quantitative representation research
 
-Status: accepted parallel research track, September 28, 2026; measurement computation is not implemented. See [the track specification](docs/REPRESENTATION_TRACK.md) for frozen visual embeddings, construction descriptors, within-pack novelty/diversity, arrangement controls and held-out human validation before learning a new space.
+Status: accepted research track, September 28, 2026; measurement computation is not implemented. Trajectory analysis can build on recorded observations, stated intentions, action attempts and visible outcomes after the materials/setup milestone. These records support hypotheses about agent behavior; transfer beyond collage needs a separate cross-domain test. See [the track specification](docs/REPRESENTATION_TRACK.md) for frozen visual embeddings, construction descriptors, within-pack novelty/diversity, arrangement controls and held-out human validation. Learning a new representation remains later work.

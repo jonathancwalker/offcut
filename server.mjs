@@ -9,6 +9,8 @@ import { createProviderRegistry } from './lib/providers.mjs';
 import { createRunManager } from './lib/runs.mjs';
 import { createArchiveCatalog } from './lib/archives.mjs';
 import { createGIFExporter } from './lib/gif.mjs';
+import { createMaterialCatalog } from './lib/material-catalog.mjs';
+import { normalizeMaterialSelection, drawMaterialIds } from './public/material-selection.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const MAX_BODY_BYTES = 40 * 1024 * 1024;
@@ -29,36 +31,6 @@ const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 const canonicalJSON = value => JSON.stringify(value, (_, item) => isObject(item)
   ? Object.fromEntries(Object.keys(item).sort().map(key => [key, item[key]]))
   : item);
-
-function sourceCatalog(sources) {
-  return sources.map(({ dataUrl, ...source }) => ({
-    ...source,
-    sha256: sha256(decodeRaster(dataUrl)),
-    previewUrl: `/api/sources/${encodeURIComponent(source.id)}`,
-  }));
-}
-
-function selectedSources(sources, body) {
-  if (body.sourceIds === undefined) {
-    if (body.sourceHashes !== undefined) fail('Choose source images before supplying their hashes.');
-    return clone(sources);
-  }
-  const ids = body.sourceIds;
-  if (!Array.isArray(ids) || ids.length < 1 || ids.length > MAX_SOURCES
-    || ids.some(id => typeof id !== 'string' || !/^[a-zA-Z0-9_-]{1,100}$/.test(id))
-    || new Set(ids).size !== ids.length) fail(`Choose between 1 and ${MAX_SOURCES} different source images.`);
-  if (!isObject(body.sourceHashes) || Object.keys(body.sourceHashes).length !== ids.length
-    || ids.some(id => !Object.hasOwn(body.sourceHashes, id) || typeof body.sourceHashes[id] !== 'string' || !/^[a-f0-9]{64}$/.test(body.sourceHashes[id]))) {
-    fail('Supply one SHA-256 hash for each selected source image, with no extra hashes.');
-  }
-  const inventory = new Map(sources.map(source => [source.id, source]));
-  return ids.map(id => {
-    const source = inventory.get(id);
-    if (!source) fail('A selected image is no longer available. Refresh the materials and review your selection.', 409);
-    if (sha256(decodeRaster(source.dataUrl)) !== body.sourceHashes[id]) fail('A selected image has changed. Refresh the materials and review your selection.', 409);
-    return clone(source);
-  });
-}
 
 function sendJSON(response, status, value) {
   response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
@@ -179,7 +151,8 @@ export const API_HELP = {
     'GET /api/state': 'Current state, history, cursor, and undo/redo availability. Add ?step=N to inspect the state after N actions (0 is an empty canvas). Reading a past step does not move the live cursor.',
     'GET /api/status': 'Lightweight polling endpoint: {revision,cursor,updatedAt}. Fetch /api/state only when its revision changes.',
     'GET /api/sources/:id': 'Read an original source image.',
-    'GET /api/source-catalog': 'List source metadata, SHA-256 hashes of original image bytes, preview URLs, and the source limit. Image bytes are not embedded.',
+    'GET /api/source-catalog': 'Browse compact metadata from the studio and the larger collected library, with a snapshot hash, exact source-byte hashes, thumbnail/full-image URLs and per-run limits. Image bytes are not embedded.',
+    'GET /api/materials/:id': 'Read one full image from the combined catalog. Add /thumbnail for a small preview. Catalog images do not consume studio inventory slots.',
     'POST /api/actions': 'Submit one action object or {actions:[action,...]}. A batch is atomic: if any action fails, none are saved.',
     'GET /api/render.png': 'Rendered composition. Add ?step=N for a replay image.',
     'GET /api/render.svg': 'Self-contained SVG with original image fragments. Add ?step=N for replay.',
@@ -190,7 +163,7 @@ export const API_HELP = {
     'GET /api/project': 'Download the full portable project, including sources and action history.',
     'POST /api/project': 'Import a previously exported project. Every action is replayed and checked before the current worktable is replaced.',
     'GET /api/providers': 'List available provider connections without exposing API keys.',
-    'POST /api/runs': 'Start an isolated blank run. Supply provider, model, prompt, and optional bounded limits. Optional sourceIds selects 1–24 images in order and requires an exact sourceHashes map from /api/source-catalog; omitted selection uses all current sources. Optional UUID clientRequestId durably deduplicates an identical launch; retries return the original run, including after a server restart. Reusing that identifier with different settings returns 409.',
+    'POST /api/runs': 'Start an isolated blank run. Supply provider, model, prompt and bounded limits. sourceIds chooses 1–24 images from the combined catalog in exact order, with matching sourceHashes. Optional materialSelection records pinned IDs, a deterministic random count/seed, candidate IDs, algorithm and reviewed catalog snapshot; it must reproduce the submitted sourceIds. Omitted sourceIds uses the studio inventory. UUID clientRequestId durably deduplicates identical launches, including after restart or catalog changes; changed settings with that identifier return 409.',
     'GET /api/runs': 'List saved experiments and their progress.',
     'GET /api/runs/:id/events': 'Read observations, requests, returned model output, batch results and termination events.',
     'GET /api/runs/:id/export': 'Download the complete run bundle with deduplicated observation images and replayable project.',
@@ -232,6 +205,7 @@ export async function createApp({ publicDir = join(ROOT, 'public'), dataDir = jo
     states = reconstruct(project);
   }
   const runs = await createRunManager({ dataDir: join(dataDir, 'runs'), providerFactory: id => providerRegistry.capture(id) });
+  const materials = createMaterialCatalog({ directory: join(dataDir, 'source-library') });
   const archives = createArchiveCatalog();
   const gifs = createGIFExporter();
   async function sendGIF(response, url, catalog, id) {
@@ -299,7 +273,17 @@ export async function createApp({ publicDir = join(ROOT, 'public'), dataDir = jo
       const url = new URL(request.url, 'http://127.0.0.1');
       const path = url.pathname;
       if (request.method === 'GET' && path === '/api/providers') return sendJSON(response, 200, providerRegistry.list());
-      if (request.method === 'GET' && path === '/api/source-catalog') return sendJSON(response, 200, { sources: sourceCatalog(project.sources), limits: { maxSources: MAX_SOURCES } });
+      if (request.method === 'GET' && path === '/api/source-catalog') {
+        const catalog = await materials.list(project.sources);
+        return sendJSON(response, 200, { ...catalog, limits: { maxSources: MAX_SOURCES, maxSourceBytes: MAX_INVENTORY_BYTES, uploadSlots: MAX_SOURCES - project.sources.length } });
+      }
+      const materialRoute = /^\/api\/materials\/([a-zA-Z0-9_-]{1,100})(\/thumbnail)?$/.exec(path);
+      if (materialRoute) {
+        if (request.method !== 'GET') fail('Method not allowed.', 405);
+        const { bytes, mime } = await materials.image(project.sources, materialRoute[1], { thumbnail: Boolean(materialRoute[2]) });
+        response.writeHead(200, { 'Content-Type': mime, 'Content-Length': bytes.length, 'Cache-Control': 'no-store' });
+        return response.end(bytes);
+      }
       const providerRoute = /^\/api\/providers\/(openai)(\/test)?$/.exec(path);
       if (providerRoute) {
         const id = providerRoute[1];
@@ -315,7 +299,7 @@ export async function createApp({ publicDir = join(ROOT, 'public'), dataDir = jo
         if (request.method === 'POST') {
           const body = await readJSON(request);
           if (!isObject(body)) fail('A run spec is required.');
-          const { sourceIds, sourceHashes, clientRequestId, ...spec } = body;
+          const { sourceIds, sourceHashes, clientRequestId, materialSelection, ...spec } = body;
           if (clientRequestId !== undefined && (typeof clientRequestId !== 'string' || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(clientRequestId))) fail('clientRequestId must be a UUID.');
           const requestFingerprint = clientRequestId === undefined ? null : sha256(canonicalJSON(body));
           const run = await serialized(async () => {
@@ -326,9 +310,20 @@ export async function createApp({ publicDir = join(ROOT, 'public'), dataDir = jo
                 return existing;
               }
             }
-            const sources = selectedSources(project.sources, { sourceIds, sourceHashes });
+            let recordedSelection;
+            if (materialSelection !== undefined) {
+              const recipe = normalizeMaterialSelection(materialSelection);
+              if (JSON.stringify(drawMaterialIds(recipe)) !== JSON.stringify(sourceIds)) fail('The images do not match the reviewed draw. Review your materials before starting.');
+              const catalog = await materials.list(project.sources);
+              if (recipe.catalogSnapshot !== catalog.snapshot) fail('The collection changed. Refresh the materials and review your selection.', 409);
+              const available = new Map(catalog.sources.map(source => [source.id, source]));
+              if ([...recipe.candidateIds, ...recipe.pinnedIds].some(id => !available.has(id))) fail('An image in the selection pool is no longer available. Refresh your materials.', 409);
+              recordedSelection = { ...recipe, candidateManifest: recipe.candidateIds.map(id => ({ id, sha256: available.get(id).sha256 })) };
+            }
+            if (sourceIds === undefined && sourceHashes !== undefined) fail('Choose source images before supplying their hashes.');
+            const sources = sourceIds === undefined ? clone(project.sources) : await materials.resolve(project.sources, sourceIds, sourceHashes, { snapshot: recordedSelection?.catalogSnapshot });
             const launch = clientRequestId === undefined ? undefined : { clientRequestId, requestFingerprint };
-            return runs.start({ spec, sources, launch });
+            return runs.start({ spec, sources, launch, ...(recordedSelection ? { materialSelection: recordedSelection } : {}) });
           });
           return sendJSON(response, 202, { run });
         }
@@ -484,7 +479,7 @@ export async function createApp({ publicDir = join(ROOT, 'public'), dataDir = jo
       const status = error.status || (validationCodes.has(error.code) ? 400 : 500);
       // Domain validation errors are safe, useful feedback for both humans and agents.
       if (status >= 500) logger.error?.(error);
-      sendJSON(response, status, { error: status === 504 ? 'GIF export took too long. Try again.' : status >= 500 ? 'The worktable could not complete this request. Check the local server for details.' : error.message || 'The request could not be completed.' });
+      sendJSON(response, status, { error: status === 504 ? 'GIF export took too long. Try again.' : status >= 500 && error.code !== 'MATERIAL_CATALOG_INVALID' ? 'The worktable could not complete this request. Check the local server for details.' : error.message || 'The request could not be completed.' });
     }
   });
   server.requestTimeout = 30_000;
