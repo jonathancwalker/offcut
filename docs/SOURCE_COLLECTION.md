@@ -59,9 +59,13 @@ Duplicates are detected by provider record ID, identical original bytes, or iden
 
 ## Using the collection in runs
 
-The collected library is currently **separate from the New run picker**. The picker still uses the studio's shared inventory, which is limited to 24 images and 24 MiB of normalized PNG data. Collection jobs do not change this inventory, existing artwork, or previous runs.
+The New run picker reads `.data/source-library/catalog.json` alongside the studio inventory. Refresh the picker after a collection job to see committed additions. Its collection filter, search and paginated thumbnails work across the combined catalog; collected images do not consume studio upload slots. Collection jobs do not change the studio, existing artwork, or previous runs.
 
-For now, selected JPEGs can be uploaded through New run while there is room in the shared inventory. The next product step is to let the picker browse the disk-backed catalog and freeze only the chosen images into each run. That separates the size of the discovery library from each model's material allowance.
+Pin any required inputs, choose an additional random count, and draw from the whole collection or the current filters. Reshuffling preserves the pins. A run accepts 1–24 selected images and at most 24 MiB of their original stored bytes; the discovery catalog is not subject to the 24-image limit. Only selected assets are loaded into a run, and library JPEGs retain their exact stored bytes. Studio uploads retain their existing 24-image/24-MiB limits.
+
+Launch freezes the reviewed IDs, order, bytes and hashes, with the selection recipe and candidate ID/hash manifest. A catalog change requires review before a new launch. An already accepted launch can be retried with its original request identity even after the catalog changes. Run exports include selected-source attribution and bounded collection provenance, including item-level rights evidence and normalization metadata. Internal collector file paths and job records are not exported.
+
+The catalog reader requires version-1 Cleveland records and hash-addressed JPEG assets. It checks image hashes and dimensions when serving or selecting them, rejects unsafe paths, and bounds catalog/image reads. A missing catalog falls back to studio images. A damaged catalog should be repaired before using the picker.
 
 `npm run sources:import` is a different command: it adds the 21 bundled source images to an existing studio through its API. It does not import this collected library.
 

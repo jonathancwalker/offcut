@@ -7,6 +7,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { setImmediate as immediate } from 'node:timers/promises';
 import { createRunManager } from '../lib/runs.mjs';
 import { getSharp, renderPNG } from '../lib/render.mjs';
+import { drawMaterialIds, normalizeMaterialSelection } from '../public/material-selection.mjs';
 
 const spec = { provider: 'openai', model: 'test-vision', prompt: 'Make something surprising from this page.' };
 const cut = { type: 'cut', sourceId: 'page', pieceId: 'leaf', polygon: [[0, 0], [40, 0], [40, 40], [0, 40]] };
@@ -568,4 +569,173 @@ test('launch metadata is bounded, contains no extra fields, and is saved before 
   assert.deepEqual(manager.get(run.id).launch, expected);
   assert.deepEqual(manager.events(run.id).find(event => event.type === 'run_started').launch, expected);
   assert.equal(factoryCalls(), 1);
+});
+
+function selectionRecord(source, patch = {}) {
+  const sha256 = createHash('sha256').update(Buffer.from(source.dataUrl.split(',')[1], 'base64')).digest('hex');
+  const recipe = normalizeMaterialSelection({ version: 1, algorithm: 'offcut-fisher-yates-v1', seed: 7, catalogSnapshot: 'a'.repeat(64), pinnedIds: [], candidateIds: [source.id], randomCount: 1, ...patch });
+  return { ...recipe, candidateManifest: recipe.candidateIds.map(id => ({ id, sha256 })) };
+}
+
+test('material selection is frozen before execution, exported, and recovered from the launch event', async t => {
+  const entered = deferred(), gate = deferred();
+  let persistedSummary, persistedEvent;
+  const { manager, source, dataDir, providerFactory, factoryCalls } = await setup(t, async request => {
+    const id = JSON.parse(request.messages.at(-1).text).state.id;
+    persistedSummary = JSON.parse(await readFile(join(dataDir, id, 'run.json'), 'utf8'));
+    persistedEvent = JSON.parse((await readFile(join(dataDir, id, 'events.jsonl'), 'utf8')).split('\n')[0]);
+    entered.resolve();
+    await gate.promise;
+    return output([], true);
+  });
+  const materialSelection = selectionRecord(source, { candidateIds: ['alpha', 'page', 'zeta'], pinnedIds: ['page'], randomCount: 1 });
+  const expected = structuredClone(materialSelection);
+  const { candidateManifest, ...recipe } = materialSelection;
+  const selectedIds = drawMaterialIds(recipe);
+  const sources = selectedIds.map(id => ({ ...source, id, name: id }));
+  const expectedSources = structuredClone(sources);
+  const starting = manager.start({ spec, sources, materialSelection });
+  // Mutations while image validation is awaiting must not affect the receipt.
+  materialSelection.seed = 100;
+  materialSelection.candidateIds.reverse();
+  materialSelection.pinnedIds.push('later-pin');
+  materialSelection.candidateManifest[0].sha256 = 'b'.repeat(64);
+  sources[0].name = 'Changed after launch';
+  sources[0].dataUrl = 'broken-after-launch';
+  const run = await starting;
+  await entered.promise;
+  assert.deepEqual(persistedSummary.materialSelection, expected);
+  assert.deepEqual(persistedEvent.materialSelection, expected);
+  assert.deepEqual(run.materialSelection, expected);
+  gate.resolve();
+  assert.equal((await finished(manager, run.id)).status, 'completed');
+  const bundle = await manager.bundle(run.id);
+  assert.deepEqual(bundle.run.materialSelection, expected);
+  assert.deepEqual(bundle.events.find(event => event.type === 'run_started').materialSelection, expected);
+  assert.deepEqual(bundle.project.sources, expectedSources);
+  assert.equal(bundle.project.materialSelection, undefined, 'The standalone artwork format is unchanged');
+  run.materialSelection.candidateManifest[0].sha256 = 'c'.repeat(64);
+  bundle.run.materialSelection.pinnedIds.push('mutated-export');
+  assert.deepEqual(manager.get(run.id).materialSelection, expected);
+  assert.equal(factoryCalls(), 1);
+
+  await manager.close();
+  const summaryPath = join(dataDir, run.id, 'run.json');
+  const staleSummary = JSON.parse(await readFile(summaryPath, 'utf8'));
+  staleSummary.materialSelection = { apiKey: 'checkpoint-secret-must-not-survive' };
+  await writeFile(summaryPath, JSON.stringify(staleSummary));
+  const restarted = await createRunManager({ dataDir, providerFactory });
+  t.after(() => restarted.close());
+  assert.deepEqual(restarted.get(run.id).materialSelection, expected);
+  assert.deepEqual((await restarted.bundle(run.id)).run.materialSelection, expected);
+  assert.deepEqual(JSON.parse(await readFile(summaryPath, 'utf8')).materialSelection, expected);
+  assert.ok(!JSON.stringify(await restarted.bundle(run.id)).includes('checkpoint-secret-must-not-survive'));
+  assert.equal(factoryCalls(), 1, 'Recovery never invokes a provider');
+});
+
+test('invalid selection receipts, source order, and candidate hashes fail before provider capture', async t => {
+  const { manager, source, factoryCalls } = await setup(t, async () => output([], true));
+  const valid = selectionRecord(source);
+  const invalid = [
+    null, [], {}, { ...valid, apiKey: 'never-store-selection-secret' },
+    { ...valid, version: 2 }, { ...valid, algorithm: 'unknown' },
+    { ...valid, seed: -1 }, { ...valid, catalogSnapshot: 'invalid' },
+    { ...valid, pinnedIds: [{ apiKey: 'never-store-selection-secret' }] },
+    { ...valid, candidateIds: ['page', 'page'] },
+    { ...valid, candidateManifest: undefined }, { ...valid, candidateManifest: [] },
+    { ...valid, candidateManifest: [...valid.candidateManifest, ...valid.candidateManifest] },
+    { ...valid, candidateManifest: [{ id: 'other', sha256: valid.candidateManifest[0].sha256 }] },
+    { ...valid, candidateManifest: [{ ...valid.candidateManifest[0], apiKey: 'never-store-selection-secret' }] },
+    { ...valid, candidateManifest: [{ id: 'page', sha256: {} }] },
+    { ...valid, candidateManifest: [{ id: 'page', sha256: 'b'.repeat(64) }] },
+    { ...valid, candidateManifest: Array(1) },
+  ];
+  for (const materialSelection of invalid) {
+    await assert.rejects(manager.start({ spec, sources: [source], materialSelection }), error => error.status === 400);
+  }
+  const twoSources = [source, { ...source, id: 'second' }];
+  const two = selectionRecord(source, { candidateIds: ['page', 'second'], pinnedIds: ['page', 'second'], randomCount: 0 });
+  await assert.rejects(manager.start({ spec, sources: twoSources.reverse(), materialSelection: two }), /do not match.*in order/);
+  await assert.rejects(manager.start({ spec, sources: [source], materialSelection: two }), /do not match.*in order/);
+  const wrongManifestOrder = { ...two, candidateManifest: [...two.candidateManifest].reverse() };
+  await assert.rejects(manager.start({ spec, sources: [source, { ...source, id: 'second' }], materialSelection: wrongManifestOrder }), /sorted ID order/);
+  assert.equal(factoryCalls(), 0);
+  assert.equal(manager.list().length, 0);
+});
+
+test('pins outside the candidate pool are retained and manual-only recipes can have no candidates', async t => {
+  const { manager, source } = await setup(t, async () => output([], true));
+  const random = { ...source, id: 'random-page' };
+  const materialSelection = selectionRecord(source, { pinnedIds: ['page'], candidateIds: ['random-page'], randomCount: 1 });
+  const started = await manager.start({ spec, sources: [source, random], materialSelection });
+  const end = await finished(manager, started.id);
+  assert.deepEqual(end.materialSelection.pinnedIds, ['page']);
+  assert.deepEqual(end.sourceManifest.map(item => item.id), ['page', 'random-page']);
+  assert.deepEqual(end.materialSelection.candidateManifest.map(item => item.id), ['random-page']);
+  const manual = selectionRecord(source, { pinnedIds: ['page'], candidateIds: [], randomCount: 0 });
+  const manualRun = await manager.start({ spec, sources: [source], materialSelection: manual });
+  assert.equal((await finished(manager, manualRun.id)).status, 'completed');
+  assert.deepEqual(manager.get(manualRun.id).materialSelection, manual);
+});
+
+test('legacy launches remain valid and recovery does not invent a material selection recipe', async t => {
+  const { manager, source, dataDir, providerFactory, factoryCalls } = await setup(t, async () => output([], true));
+  const run = await manager.start({ spec, sources: [source] });
+  await finished(manager, run.id);
+  assert.equal(Object.hasOwn(manager.get(run.id), 'materialSelection'), false);
+  assert.equal(Object.hasOwn(manager.events(run.id)[0], 'materialSelection'), false);
+  await manager.close();
+  const summaryPath = join(dataDir, run.id, 'run.json');
+  const summary = JSON.parse(await readFile(summaryPath, 'utf8'));
+  summary.materialSelection = selectionRecord(source);
+  await writeFile(summaryPath, JSON.stringify(summary));
+  const restarted = await createRunManager({ dataDir, providerFactory });
+  t.after(() => restarted.close());
+  assert.equal(Object.hasOwn(restarted.get(run.id), 'materialSelection'), false);
+  assert.equal(Object.hasOwn((await restarted.bundle(run.id)).run, 'materialSelection'), false);
+  assert.equal(Object.hasOwn(JSON.parse(await readFile(summaryPath, 'utf8')), 'materialSelection'), false);
+  assert.equal(factoryCalls(), 1);
+});
+
+test('frozen material manifests retain bounded catalog provenance and omit arbitrary metadata', async t => {
+  const gate = deferred();
+  const { manager, source, dataDir, providerFactory } = await setup(t, async () => { await gate.promise; return output([], true); });
+  source.collection = 'Cleveland Museum of Art';
+  source.tags = ['bird', 'paper', 'bird'];
+  source.apiKey = 'source-secret-must-not-persist';
+  source.provenance = {
+    provider: 'museum', recordId: '123', title: 'A bird', creator: 'An artist',
+    url: 'https://example.org/collection/123', originalSha256: 'd'.repeat(64),
+    rightsEvidence: { share_license_status: 'CC0', policyUrl: 'https://example.org/rights', apiKey: 'rights-secret-must-not-persist' },
+    normalization: { maxEdge: 900, format: 'jpeg', quality: 88, fullImage: true, path: '/private/never-persist' },
+    alsoCatalogedAs: [{ provider: 'second-museum', recordId: '456', apiKey: 'alias-secret-must-not-persist' }],
+    apiKey: 'provenance-secret-must-not-persist', path: '/private/never-persist', unexpected: { secret: 'nested-secret-must-not-persist' },
+  };
+  const starting = manager.start({ spec, sources: [source] });
+  source.collection = 'Changed after start';
+  source.tags.push('changed-tag');
+  source.provenance.creator = 'Changed creator';
+  source.provenance.normalization.quality = 1;
+  const run = await starting;
+  gate.resolve();
+  await finished(manager, run.id);
+  const manifest = manager.get(run.id).sourceManifest[0];
+  assert.equal(manifest.collection, 'Cleveland Museum of Art');
+  assert.deepEqual(manifest.tags, ['bird', 'paper']);
+  assert.equal(manifest.provenance.creator, 'An artist');
+  assert.deepEqual(manifest.provenance.rightsEvidence, { share_license_status: 'CC0', policyUrl: 'https://example.org/rights' });
+  assert.deepEqual(manifest.provenance.normalization, { maxEdge: 900, format: 'jpeg', quality: 88, fullImage: true });
+  assert.deepEqual(manifest.provenance.alsoCatalogedAs, [{ provider: 'second-museum', recordId: '456' }]);
+  const bundle = await manager.bundle(run.id);
+  assert.deepEqual(bundle.events[0].sourceManifest, bundle.run.sourceManifest);
+  assert.ok(!JSON.stringify(bundle).includes('must-not-persist'));
+  assert.ok(!JSON.stringify(bundle).includes('/private/never-persist'));
+  assert.equal(bundle.project.sources[0].collection, undefined);
+  assert.equal(bundle.project.sources[0].provenance, undefined);
+  assert.equal(bundle.project.sources[0].credit, 'Test fixture');
+  assert.equal(bundle.project.sources[0].license, 'CC0');
+  await manager.close();
+  const restarted = await createRunManager({ dataDir, providerFactory });
+  t.after(() => restarted.close());
+  assert.deepEqual(restarted.get(run.id).sourceManifest[0], manifest);
 });

@@ -1,45 +1,56 @@
 # Offcut roadmap
 
-**Current product direction — September 30, 2026:** an observer interface with Library and read-only Work pages. Model setup uses a fixed task and constraints; completed output has playback, fragment/source trays, and explicitly attributed model writing. The two early works are included as truthful archives. See [the component map](docs/PRODUCT.md). Earlier proposals below remain research/expansion ideas, not additions to the current minimal interface.
+**Current status — October 2, 2026, after PR #9:** Offcut has a Library, a New run page with a fixed creative task, and read-only Work pages. The OpenAI runner saves isolated runs with frozen sources, native image observations, append-only events, limits, stop, export and recovery. Work pages provide accepted-action playback, speed controls, GIF export, brief fragment outlines, source/fragment inspection, and explicitly attributed model writing. Physical trimming now preserves retained pieces, usable offcuts, holes and lineage. Three early works are included as truthful archives. See [the component map](docs/PRODUCT.md) and [model interface](docs/MODEL_INTERFACE.md).
 
-Drafted September 27, 2026. Priority agreed with the project owner: model experiments first, with a public presence as quickly as possible.
+The **materials and run setup** foundation is implemented on this branch: the picker browses the collected catalog, combines pinned images with an optional random draw, and freezes the reviewed selection with its reproducible recipe. Expanding and curating the image library is next. A small static public gallery remains a parallel priority. Additional providers, repeat/comparison queues and trajectory research follow; hosted open models, community features and learned embeddings remain later work. The public gallery has not been deployed.
 
-Build a reliable experimental workbench and let a small public gallery grow directly from its recorded runs. A first public preview can show the two existing demonstrations while the model runner is being built. Open community submissions and hosted model execution do not need to be prerequisites for that preview.
+Originally drafted September 27, 2026; the sequence below is updated for the current implementation. It proposes implementation order, not a calendar commitment or authorization for a paid run campaign. Hosting, repository visibility and dollar spending controls remain implementation decisions; current runs expose request/action/time bounds and explicitly unavailable dollar estimates.
 
-This is a proposed implementation sequence, not a calendar commitment. As of September 28, the studio, action API, replay, two exploratory collages, and the first OpenAI runner exist. The runner includes setup, private connection handling, isolated saved runs, observations/events, limits and stop controls. Additional providers, repeat queues, a public site and research evaluation remain. Hosting, repository visibility and dollar spending controls are still implementation decisions; the initial runner exposes hard request/action/time bounds and unavailable dollar estimates explicitly.
+## Materials and run setup
+
+The current starter pack contains 21 images. The on-demand Cleveland collector has 12 locally collected images as of October 2. Both are now browsable together in the picker; collected images remain local data rather than bundled Git assets. **120–200 varied images is an initial curation target**, not an already collected library. See [collection commands and provenance](docs/SOURCE_COLLECTION.md).
+
+- **Separate catalog from active inventory.** Browse a growing disk-backed catalog through thumbnails, search and filters, loading only selected image bytes for a run. The shared studio inventory currently holds at most 24 images, and each run also accepts at most 24 images and 24 MiB of source data. A larger catalog should not require loading every image into that inventory or increasing the run limits.
+- **Pin required materials and choose an additional random count.** Pinned images are always included in the run's materials. Allow zero additional images for manual-only selection and zero pins for random-only selection. Require at least one image overall and validate the final selection against count and byte limits. Inclusion supplies material to the artist; requiring every supplied image to appear in the artwork would be a separate experimental rule.
+- **Make the random pool visible.** Choose the entire collection or current search/collection filters as eligible candidates. Draw without replacement, excluding pinned images. Reject an impossible requested count clearly. Reroll changes only the random portion and preserves every pin. Individual exclusions and reusable pool definitions remain later extensions.
+- **Review and freeze the exact selection.** Show a contact sheet, attribution, pinned/random membership and the final count before launch. Launch uses those exact ordered source IDs, bytes and hashes; a retry keeps the reviewed draw. Record the selection recipe, seed, sampling algorithm/version and an immutable catalog/candidate-pool snapshot so the draw can be reconstructed after the library changes. The frozen images remain authoritative for replay.
+- **Defer reusable named material sets.** First make one selection reliable and pleasant to review; saved material sets and pack management can build on the same frozen manifests later.
+
+The picker now implements these core controls, with pagination, full-image attribution, selected-byte limits, draft restoration and launch-retry protection. Runs record candidate IDs/hashes alongside the catalog digest; selected files retain exact bytes and bounded provenance. The collector already provides duplicate detection, budgets and resume checkpoints. Next: curate toward the image target and refine the flow through real use. No bulk collection or paid model campaign has been run as part of this interface change.
 
 ## Milestones and release gates
 
 | Milestone | What ships | Completion criterion |
 | --- | --- | --- |
-| A. Public preview, in parallel | A short explanation, the two current demo works, original source sheets, accepted-action replay, permanent artwork pages, and a methods note. | A visitor can understand the constraint, inspect a work, and watch its construction. Both works are labeled exploratory demos with different starting conditions. |
-| B. Reliable experiment runner | A provider adapter, private API-key setup, isolated run storage, fixed source packs, bounded model loop, complete event recording, and a simple experiment form. Add the other major-provider adapters after the first works end to end. | A run can start from a saved specification, finish or stop cleanly, and export a replayable bundle without an operator manually writing its commands. |
+| A. Public preview, in parallel | A short explanation, selected archived/recorded works, original source sheets, accepted-action replay, permanent artwork pages, and a methods note. | A visitor can understand the constraint, inspect a work, and watch its construction. Exploratory works retain their actual starting conditions and authoring labels. |
+| B. Runner and material-selection foundation implemented | The OpenAI adapter, private key setup, isolated storage, bounded loop, events and catalog picker are implemented, including pins, random draws and exact review. Curate a larger varied collection next. | A run freezes the reviewed materials and reproducible selection recipe, then finishes or stops cleanly and exports a replayable bundle. |
 | C. First public study | Several supported multimodal models, a repeated-run queue, blind review flow, a filterable gallery of study works, and a complete pilot report. | Every attempted study run is accounted for; published works link to their materials, protocol, replay, and results. The first public release does not wait for a universal creativity score. |
-| D. More materials and open models | Archive search and ingestion, a larger curated catalog, pack creation, Hugging Face routing, and a configurable compatible endpoint for self-hosted vision-language models. | A selected source pack is reproducible; an eligible hosted open model can complete the same action loop. Each route passes image-input and action-output checks. |
+| D. Broader materials and open models | After the immediate catalog/picker milestone: more archive adapters, reusable pack management, Hugging Face routing, and a configurable compatible endpoint for self-hosted vision-language models. | A selected source pack is reproducible; an eligible hosted open model can complete the same action loop. Each route passes image-input and action-output checks. |
 | E. Community creation and publication | Accounts, private drafts, validated project uploads, publishing controls, collections, shared challenges, and remix lineage. | A person can publish a collage and its available timeline with clear provenance, attribution, and authoring labels. Imported histories are distinguished from platform-recorded runs. |
 
-Milestone A can begin immediately from saved artifacts. Milestone C depends on B's reliable run records. Work on the gallery's presentation can run alongside B; community publishing depends on a validated public artifact format. An HF connector can move earlier if an appropriate hosted model is already available and the adapter contract is stable.
+Milestone A can begin from saved artifacts alongside the materials/setup work in B. Milestone C needs additional adapters, a repeat queue and a frozen comparison protocol on top of the existing run records. Community publishing depends on a validated public artifact format. HF routing remains later scope.
 
 ```mermaid
 flowchart LR
-    D[Existing demos] --> P[Public preview]
-    R[Runner and event format] --> S[Repeated model study]
+    D[Saved works] --> P[Static public preview]
+    R[Existing runner and collector] --> M[Catalog and material selection]
+    M --> O[More providers and repeat queues]
+    O --> S[Trajectory research and scoped study]
     P --> G[Gallery of study results]
     S --> G
-    R --> O[More providers and source packs]
     G --> C[Community publishing]
 ```
 
 ## 1. Image library and experimental source packs
 
-Start with roughly 120–200 deliberately varied images and 12 named, fixed packs of three images. These are proposed curation targets, not prerequisites for the first preview. Begin the runner with the existing pack and a few contrasting packs. Include photography, botanical illustration, printed pages, maps, diagrams, textiles, isolated objects, and dense scenes. Keep the current botanical/city/space set as a named legacy pack.
+Curate toward roughly 120–200 deliberately varied images: photography, botanical illustration, printed pages, maps, diagrams, textiles, isolated objects, and dense scenes. The earlier proposal for 12 named, fixed packs of three images remains a later study-curation target, not an existing collection or a prerequisite for the first preview. Preserve the original botanical/city/space set as a legacy experimental pack when saved material sets are added.
 
 Use two distinct objects:
 
 - **Discovery library:** a growing searchable catalog. Search titles, subjects, institution, date, orientation, color, visual density, and rights. Cache thumbnails first; ingest full images when selected. Add semantic search after basic curation works.
 - **Experiment pack:** an immutable, versioned manifest containing the exact cached image bytes used in a run. Store source IDs, object links, creators, item-level rights, retrieval date, original and normalized hashes, dimensions, and the normalization recipe.
 
-Useful initial integrations:
+The Cleveland Museum of Art CC0 collector is implemented. Possible additional integrations:
 
 | Source | Role and eligibility rule |
 | --- | --- |
@@ -55,7 +66,7 @@ For the first controlled study, choose packs before a run begins. Letting an age
 
 ## 2. Model access and API-key setup
 
-Keep one action contract and implement thin provider adapters. Build the first adapter for a provider the owner can access, validate the full loop, then complete support for OpenAI, Anthropic, and Google. Required capabilities are image input and text/JSON action output; image generation is unnecessary. Support validated ordinary JSON where native tool calling or structured output is unavailable.
+Keep one action contract and implement thin provider adapters. OpenAI is implemented; Anthropic and Google are proposed additions after the materials/setup milestone. Required capabilities are image input and text/JSON action output; image generation is unnecessary. Support validated ordinary JSON where native tool calling or structured output is unavailable.
 
 The local settings flow should offer provider selection, a private key entry or environment-variable connection, a connection test, eligible model selection, and a small image-input/action-output test. Keep credentials in the backend environment or an OS-backed credential store, outside the browser's persisted state, run logs, project exports, and repository. OpenAI's [quickstart](https://developers.openai.com/api/docs/quickstart) documents environment-based API-key setup.
 
@@ -69,6 +80,8 @@ Open-model access has two practical routes:
 Validate each route with the same small fixture before it appears as selectable for a study. Record usage, elapsed time, failures, and cost when available; show unknown cost as unknown. Enforce request, action, turn, wall-time, and configured spending limits with reservations for in-flight requests and conservative cost estimates.
 
 ## 3. Experiment setup and run controls
+
+The following is a retained long-term experiment-workbench proposal. The current observer product uses a fixed task, model/material/budget setup and read-only Work pages. The next UI milestone is the material-selection flow above. Editable creative prompts, human interventions, Explore/Study modes and a live editable canvas are not part of that next milestone; revisit them only as separately defined research conditions.
 
 Use a simple sequence: **Materials → Models → Rules → Review and run**.
 
@@ -96,18 +109,18 @@ Define the run bundle before building a rich viewer. It should contain the froze
 
 The append-only experiment record must survive undo, retries and abandoned continuations. The editable project's retained canvas history remains useful but is not the complete experiment record. Native internal reasoning is not a requirement; deliberate decision notes are a separate, visible output.
 
-Extend the current replay in stages:
+Accepted-action playback, action stepping/scrubbing, speed controls, fragment outlines, source/fragment inspection and GIF export are shipped. Extend that foundation in stages:
 
 1. Existing accepted-action playback on the first public pages.
 2. Turn-by-turn inspection showing the images made available to the agent, its note, the command batch, and the resulting canvas.
-3. Source-cut highlighting, before/after view, errors and revisions, speed controls, and shareable links to an exact step.
+3. Synchronized source-cut highlighting, before/after detail, errors and revisions, and shareable links to an exact step.
 4. Side-by-side runs with a clearly labeled alignment mode: model turn, action count, or normalized progress. Those alignments are not equivalent measures of effort.
 
 Replaying recorded artwork should reconstruct it exactly. Repeating a model run may produce a different result even with the same requested settings; label those two operations distinctly.
 
 ## 5. Public gallery, filters and participation
 
-The first public gallery can be generated from deliberately published run bundles while experiments and API keys remain private. Start with a static gallery manifest and stored artifacts; introduce account and submission databases when community publishing needs them. The gallery needs thumbnails, permanent work pages, source sheets, replay, concise statements, model/run metadata, and a clear link to methods. The current two works can establish the format before a full study is available.
+The first public gallery can be generated from deliberately published run bundles while experiments and API keys remain private. Start with a static gallery manifest and stored artifacts; introduce account and submission databases when community publishing needs them. The gallery needs thumbnails, permanent work pages, source sheets, replay, concise statements, model/run metadata, and a clear link to methods. The three archived works and selected recorded runs can establish the format before a full study is available.
 
 Prioritize filters for model/provider, source pack, experiment/condition, authoring mode (human, agent, mixed or unknown), date, fragment/action budget, and run status. Later add subject/style tags, cost range, collections, repeated motifs, and source institution. Distinguish curator/author tags from tags inferred by another model. Use all-runs or chronological views alongside selected highlights so a showcase does not masquerade as an unbiased sample.
 
@@ -137,7 +150,7 @@ Keep four views of the result separate:
 | Audience response | Blinded visual coherence/appeal, surprise, reinterpretation of source material, optional pairwise preference | How the recruited viewers respond under defined viewing conditions |
 | Diversity | Repeated motifs, composition families, source-region choices, variation within and between models | Whether repeated runs explore different possibilities |
 
-The first research question should be: **When agents receive the same scraps, how much do their compositions converge?** Our two demos motivate this question; they do not answer it because their initial states differed and there are only two examples.
+The first research question should be: **When agents receive the same scraps, how much do their compositions converge?** The first two demos motivated this question; they did not answer it because their initial states differed and there were only two examples. Subsequent exploratory runs also do not constitute a controlled comparison.
 
 Proposed sequence:
 
@@ -152,13 +165,15 @@ The detailed [research plan](docs/RESEARCH_PLAN.md) defines these questions and 
 
 ## Immediate implementation sequence
 
+Updated October 2 after implementing the first material picker; this sequence does not authorize a paid experiment campaign. The detailed workbench and study designs above remain proposals, with the current observer interface taking precedence for near-term UI scope.
+
 | Order | Work item | Evidence that it is done |
 | --- | --- | --- |
-| 1 | Run specification, event schema and isolated storage | A recorded fixture reconstructs exactly; failed attempts remain available; two runs cannot change each other's worktables. |
-| 2 | First provider adapter and credential connection | A fresh model receives source/canvas images and completes a short constrained run; credentials never appear in its exports. |
-| 3 | Experiment form, limits and recoverable execution | A person can launch, watch, stop, and inspect a saved run without writing a script. |
-| 4 | Initial fixed packs and another model route | The same pack hashes and protocol are used across repeated runs; usage and failures are reported. |
-| 5 | Public artifact page and gallery | Existing demos and selected recorded runs have permanent pages, provenance and replay; a complete study manifest is available when making comparative claims. |
-| 6 | Pilot and first report | Every attempted run is accounted for and the report distinguishes observed effects, uncertainty and open questions. |
+| Implemented | Connect the catalog and pinned-plus-random picker | A catalog larger than 24 images is searchable and browsable; pins, count, filtered pool, random-only reroll and exact review work together. Launch freezes selected bytes, hashes, recipe, seed and candidate manifest. |
+| Next | Curate toward 120–200 varied images and refine setup | Deliberately varied additions retain provenance and work with the picker; individual pool exclusions and saved sets can follow observed needs. |
+| Parallel | Publish a small static gallery preview | Deliberately selected archived/recorded works have permanent pages, source sheets, provenance and replay, with truthful exploratory labels. |
+| 3 | Add provider routes and repeat/comparison queues | Independent attempts share frozen material hashes and protocol; all attempts, usage, errors and termination reasons are retained. |
+| 4 | Develop trajectory research and a scoped pilot/report | Stated intentions are linked to observations/actions and independently assessed outcomes; every attempted run is accounted for and claims reflect the design's limits. Paid runs require a separately agreed scope and budget. |
+| Later | Saved material sets, broader archives, HF/self-hosted routes, community publication and learned representations | Each extension has its own validated contract; learning a representation follows evidence from descriptive measures, frozen encoders and held-out human judgments. |
 
-Public-preview presentation work in item 5 can start alongside items 1–3 using the existing demo exports. Keep the initial gallery small so accounts, social feeds, massive image ingestion, full GPU hosting, sophisticated semantic search, and a headline leaderboard do not delay the first public artifact.
+Keep the first public preview small. Accounts, social feeds, GPU hosting, semantic search and a headline leaderboard can follow a useful gallery and a reliable material-selection flow.

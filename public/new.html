@@ -15,22 +15,36 @@
     <nav class="app-nav" aria-label="Main navigation"><a class="nav-link" href="/">Library</a><a class="nav-link active" href="/new.html" aria-current="page">New run</a></nav>
   </header>
   <main class="new-main">
-    <div class="new-heading"><div><h1>New run</h1><p>Choose the images. Leave the composition to the model.</p></div></div>
+    <div class="new-heading"><div><p class="new-kicker">New run · Materials</p><h1>Set the table.</h1></div><p class="new-intro">Pin a few.<br>Shuffle the rest.</p></div>
     <div id="page-error" class="notice error-notice" role="alert" hidden><p id="page-error-message"></p><button id="retry-load" type="button" class="text-button">Reload setup</button></div>
     <div id="active-notice" class="notice" hidden><p>A model is already working.</p><a id="active-link" href="/" class="text-button">View work ↗</a></div>
     <div id="pending-notice" class="notice pending-notice" role="status" hidden><div><strong>Let’s check that start.</strong><p>The response was interrupted. Retrying this request won’t start a second run.</p></div><button id="retry-start" type="button" class="secondary-button">Retry start</button></div>
     <div class="setup-layout">
       <section class="materials-area" aria-labelledby="materials-heading">
-        <div class="section-heading"><h2 id="materials-heading">Source images <span id="catalog-count"></span></h2><button id="add-images" type="button" class="secondary-button" disabled><span aria-hidden="true">+</span> Add images</button><input id="image-files" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden></div>
-        <div class="material-toolbar"><label class="material-search"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m12.5 12.5 4 4"/></svg><input id="source-search" type="search" placeholder="Find an image" aria-label="Find a source image" autocomplete="off"></label><div class="selection-tools"><button id="select-all" type="button" class="text-button" disabled>Select all</button><span aria-hidden="true">/</span><button id="clear-selection" type="button" class="text-button" disabled>Clear</button></div></div>
+        <div class="section-heading"><h2 id="materials-heading">Collection <span id="catalog-count"></span></h2><button id="add-images" type="button" class="secondary-button" disabled><span aria-hidden="true">+</span> Add images</button><input id="image-files" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden></div>
+        <div class="material-toolbar"><label class="sr-only" for="collection-filter">Browse collection</label><select id="collection-filter"><option value="">All collections</option></select><label class="material-search"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m12.5 12.5 4 4"/></svg><input id="source-search" type="search" placeholder="Find an image" aria-label="Find a source image" autocomplete="off"></label></div>
         <p id="material-message" class="material-message" role="status"></p>
         <div id="source-grid" class="source-grid" aria-busy="true"><p class="material-empty">Loading images…</p></div>
         <div id="source-empty" class="material-empty" hidden><p>No source images yet.</p><button id="empty-add" type="button" class="text-button">Add your first images</button></div>
         <div id="search-empty" class="material-empty" hidden><p>No images match this search.</p><button id="clear-search" type="button" class="text-button">Clear search</button></div>
-        <div class="selected-materials"><div class="selected-heading"><h3>On the table <span id="selection-count" aria-live="polite">0 images</span></h3><span>Fresh material for this run</span></div><div id="selected-tray" class="selected-tray"><p>Choose at least one image above.</p></div></div>
-        <p id="upload-capacity" class="fine-print">PNG, JPEG or WebP · Up to 24 images in your local collection</p>
+        <div class="catalog-footer"><span id="page-count" role="status"></span><div><button id="previous-page" class="text-button" type="button" disabled>← Back</button><button id="next-page" class="text-button" type="button" disabled>Next →</button></div></div>
+        <p id="upload-capacity" class="fine-print"></p>
       </section>
-      <aside class="run-settings" aria-label="Run settings">
+      <aside class="setup-sidebar" aria-label="Your run">
+        <section class="material-recipe" aria-label="Material selection">
+          <div class="recipe-heading"><h2>Pinned <span id="pin-count">0</span></h2><button id="clear-pins" type="button" class="text-button" disabled>Clear pins</button></div>
+          <div id="pinned-tray" class="recipe-tray"></div>
+          <section class="random-section" aria-labelledby="random-heading">
+            <div class="recipe-heading"><h2 id="random-heading">Random extras</h2><div class="random-stepper"><button id="fewer-random" type="button" aria-label="One fewer random image" disabled>−</button><input id="random-count" type="number" min="0" max="24" step="1" value="6" aria-label="Number of additional random images" disabled><button id="more-random" type="button" aria-label="One more random image" disabled>+</button></div></div>
+            <div class="draw-controls"><label>From <select id="random-pool" aria-label="Pool for random extras" disabled><option value="all">Entire collection</option><option value="filtered">Current filters</option></select></label><span id="eligible-count"></span></div>
+            <p id="pool-description" class="field-help"></p>
+            <div id="random-tray" class="recipe-tray"></div>
+            <button id="reshuffle" type="button" class="reshuffle" disabled><span aria-hidden="true">⇄</span> Reshuffle extras</button>
+          </section>
+          <div class="selection-total" aria-live="polite" aria-atomic="true"><div><span>On the table</span><p id="selection-equation">0 pinned + 6 random</p></div><strong id="selection-count">0 images</strong></div>
+          <p id="selection-error" class="selection-error" role="alert" hidden></p><button id="review-materials" type="button" class="text-button" hidden>Update table &amp; review</button>
+        </section>
+        <div class="run-settings" aria-label="Run settings">
         <section class="model-section" aria-labelledby="model-heading">
           <div class="section-heading"><h2 id="model-heading">Model</h2><span class="provider-name">OpenAI</span></div>
           <label class="sr-only" for="model">Model ID</label><input id="model" type="text" list="available-models" form="run-form" required maxlength="160" pattern="[a-zA-Z0-9][a-zA-Z0-9._:\/\-]{0,159}" autocomplete="off" placeholder="Choose or enter a model ID" aria-describedby="model-help" disabled><datalist id="available-models"></datalist>
@@ -43,6 +57,7 @@
         </section>
         <details class="task-details"><summary>The assignment</summary><p id="fixed-prompt"></p><p class="field-help">Existing images only. Cut, move, rotate, scale and layer. Each source area can be cut once. A fresh 1000 × 1200 canvas.</p></details>
         <div class="start-section"><p id="run-summary" class="run-summary">0 images · 24 fragments max</p><p id="launch-error" class="form-error" role="alert" hidden></p><button id="refresh-materials" class="text-button" type="button" hidden>Refresh images &amp; review selection</button><form id="run-form"><button id="launch-run" class="primary-button start-button" type="submit" disabled><span>Start run</span><span aria-hidden="true">↗</span></button></form><p id="launch-help" class="field-help" role="status">Loading setup…</p><p class="billing-note">Uses your API account. No dollar cap yet.</p></div>
+        </div>
       </aside>
     </div>
   </main>

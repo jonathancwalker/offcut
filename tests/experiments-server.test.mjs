@@ -167,13 +167,16 @@ test('source catalog exposes compact metadata and exact original-byte hashes', a
   const { request, base, sources } = await fixture(t, completedOutput, { sourceCount: 3 });
   const catalog = await request('/api/source-catalog');
   assert.equal(catalog.status, 200);
-  assert.deepEqual(catalog.data.limits, { maxSources: 24 });
+  assert.deepEqual(catalog.data.limits, { maxSources: 24, maxSourceBytes: 24 * 1024 * 1024, uploadSlots: 21 });
+  assert.match(catalog.data.snapshot, /^[a-f0-9]{64}$/);
   assert.equal(catalog.data.sources.length, 3);
   for (const [index, source] of catalog.data.sources.entries()) {
     const { dataUrl, ...metadata } = sources[index];
     const bytes = Buffer.from(dataUrl.split(',')[1], 'base64');
-    assert.deepEqual(source, { ...metadata, sha256: createHash('sha256').update(bytes).digest('hex'), previewUrl: `/api/sources/${source.id}` });
-    assert.deepEqual(Buffer.from(await (await fetch(base + source.previewUrl)).arrayBuffer()), bytes);
+    assert.deepEqual(source, { ...metadata, sha256: createHash('sha256').update(bytes).digest('hex'), byteLength: bytes.length, collection: 'Studio', tags: [], previewUrl: `/api/materials/${source.id}/thumbnail`, imageUrl: `/api/materials/${source.id}` });
+    assert.deepEqual(Buffer.from(await (await fetch(base + source.imageUrl)).arrayBuffer()), bytes);
+    const thumbnail = await getSharp()(Buffer.from(await (await fetch(base + source.previewUrl)).arrayBuffer())).metadata();
+    assert.ok(thumbnail.width <= 360 && thumbnail.height <= 360);
   }
   assert.ok(!JSON.stringify(catalog.data).includes('base64'));
 });
