@@ -7,6 +7,7 @@ import { createState, applyAction, DEFAULT_RULES } from './lib/engine.mjs';
 import { getSharp, renderSVG, renderPNG } from './lib/render.mjs';
 import { createProviderRegistry } from './lib/providers.mjs';
 import { createRunManager } from './lib/runs.mjs';
+import { createBatchManager } from './lib/batches.mjs';
 import { createArchiveCatalog } from './lib/archives.mjs';
 import { createGIFExporter } from './lib/gif.mjs';
 import { createMaterialCatalog } from './lib/material-catalog.mjs';
@@ -169,6 +170,11 @@ export const API_HELP = {
     'GET /api/runs/:id/export': 'Download the complete run bundle with deduplicated observation images and replayable project.',
     'GET /api/runs/:id/render.gif': 'Download playback from blank canvas through the saved cursor after a run ends. No query options. Also available for /api/archives/:id/render.gif.',
     'POST /api/runs/:id/stop': 'Cancel an experiment and retain its committed history.',
+    'POST /api/batches': 'Start a reviewed sequential batch: clientRequestId, shared spec, model/count groups, explore or compare mode, same/random/pinned-random materials, and the reviewed materialSelection/sourceIds/sourceHashes. Up to 8 model groups and 50 total runs. Compare shares draws by run number across groups; Explore draws independently. All planned images are frozen before the first call.',
+    'GET /api/batches': 'List saved batch summaries and launch receipts.',
+    'GET /api/batches/:id': 'Inspect the frozen plan, groups, per-run draws and outcomes.',
+    'GET /api/batches/:id/sources/:sourceId': 'Read a frozen source from the batch, even after the discovery catalog changes.',
+    'POST /api/batches/:id/stop': 'Stop the active child and leave remaining entries unstarted. Batches never resume model calls automatically after restart.',
   },
   actions: [
     { type: 'cut', sourceId: 'source-id', polygon: [[20, 20], [200, 20], [200, 180], [20, 180]], pieceId: 'my-fragment' },
@@ -206,6 +212,7 @@ export async function createApp({ publicDir = join(ROOT, 'public'), dataDir = jo
   }
   const runs = await createRunManager({ dataDir: join(dataDir, 'runs'), providerFactory: id => providerRegistry.capture(id) });
   const materials = createMaterialCatalog({ directory: join(dataDir, 'source-library') });
+  const batches = await createBatchManager({ dataDir: join(dataDir, 'batches'), runs, materials, getInventory: () => clone(project.sources), providerFactory: id => providerRegistry.capture(id) });
   const archives = createArchiveCatalog();
   const gifs = createGIFExporter();
   async function sendGIF(response, url, catalog, id) {
@@ -294,6 +301,32 @@ export async function createApp({ publicDir = join(ROOT, 'public'), dataDir = jo
         }
         fail('Method not allowed.', 405);
       }
+      if (path === '/api/batches') {
+        if (request.method === 'GET') return sendJSON(response, 200, { batches: await batches.list() });
+        if (request.method === 'POST') {
+          const body = await readJSON(request);
+          const batch = await serialized(() => batches.start(body));
+          return sendJSON(response, 202, { batch });
+        }
+        fail('Method not allowed.', 405);
+      }
+      if (path.startsWith('/api/batches/')) {
+        const batchRoute = /^\/api\/batches\/([a-zA-Z0-9_-]+)(?:\/(stop)|\/sources\/([a-zA-Z0-9_-]{1,100}))?$/.exec(path);
+        if (!batchRoute) fail('Batch not found.', 404);
+        const [, id, stop, sourceId] = batchRoute;
+        if (stop) {
+          if (request.method !== 'POST') fail('Method not allowed.', 405);
+          await readJSON(request);
+          return sendJSON(response, 200, { batch: await batches.stop(id) });
+        }
+        if (request.method !== 'GET') fail('Method not allowed.', 405);
+        if (sourceId) {
+          const { bytes, mime } = await batches.asset(id, sourceId);
+          response.writeHead(200, { 'Content-Type': mime, 'Content-Length': bytes.length, 'Cache-Control': 'no-store' });
+          return response.end(bytes);
+        }
+        return sendJSON(response, 200, { batch: await batches.get(id) });
+      }
       if (path === '/api/runs') {
         if (request.method === 'GET') return sendJSON(response, 200, { runs: await runs.list() });
         if (request.method === 'POST') {
@@ -310,6 +343,7 @@ export async function createApp({ publicDir = join(ROOT, 'public'), dataDir = jo
                 return existing;
               }
             }
+            if (batches.hasActive()) fail('A batch is running. Stop it or wait for it to finish before starting another run.', 409);
             let recordedSelection;
             if (materialSelection !== undefined) {
               const recipe = normalizeMaterialSelection(materialSelection);
@@ -487,6 +521,7 @@ export async function createApp({ publicDir = join(ROOT, 'public'), dataDir = jo
   let closing;
   return { server, getProject: () => clone(project), getState: () => clone(states[project.cursor]), close: () => {
     closing ??= (async () => {
+      await batches.close();
       await runs.close();
       await gifs.close();
       if (server.listening) await new Promise((resolveClose, reject) => server.close(error => error ? reject(error) : resolveClose()));

@@ -1,4 +1,5 @@
 import {MATERIAL_SELECTION_VERSION, MATERIAL_SELECTION_ALGORITHM, normalizeMaterialSelection, drawMaterialIds} from '/material-selection.mjs';
+import {planBatch, BATCH_LIMITS} from '/batch-plan.mjs';
 
 const $ = id => document.getElementById(id);
 const TASK = 'Create an original collage from the provided source images. Choose your own subject and composition. There is no target image. Give the finished work a title and a short statement.';
@@ -11,6 +12,7 @@ const LIMIT_KEYS = Object.keys(PRESETS.standard);
 const DRAFT_KEY = 'offcut.new-run.draft.v2';
 const LEGACY_DRAFT_KEY = 'offcut.new-run.draft.v1';
 const PENDING_KEY = 'offcut.new-run.pending.v1';
+const BATCH_PENDING_KEY = 'offcut.new-batch.pending.v1';
 const PAGE_SIZE = 12;
 const readStored = key => { try { return JSON.parse(sessionStorage.getItem(key)); } catch { return null; } };
 const draft = readStored(DRAFT_KEY) || readStored(LEGACY_DRAFT_KEY);
@@ -21,11 +23,18 @@ function restorePending(value) {
   if (Object.keys(value).some(key => !keys.includes(key))) return null;
   return value;
 }
+function restorePendingBatch(value) {
+  if (!value || typeof value !== 'object' || !Array.isArray(value.groups) || !Array.isArray(value.sourceIds) || !value.sourceHashes || !value.spec || typeof value.clientRequestId !== 'string') return null;
+  const keys=['clientRequestId','spec','groups','mode','materials','materialSelection','sourceIds','sourceHashes'];
+  if (Object.keys(value).some(key=>!keys.includes(key))) return null;
+  return value;
+}
 const state = {
   sources: [], selected: new Map(), tiles: new Map(), maxSources:24, maxSourceBytes:24*1024*1024, uploadSlots:0,
   snapshot:'', pins:[], randomCount:6, seed:null, recipe:null, reviewedRecipe:null, drawError:'', needsReview:false,
-  provider:null, verified:false, runs:[], ready:false, loading:false, uploading:false,
-  credentialBusy:false, launching:false, pending:restorePending(readStored(PENDING_KEY)),
+  provider:null, verified:false, runs:[], batches:[], ready:false, loading:false, uploading:false,
+  credentialBusy:false, launching:false, pending:restorePending(readStored(PENDING_KEY)), pendingBatch:restorePendingBatch(readStored(BATCH_PENDING_KEY)),
+  batchMode:'explore', materialsChoice:null, batchPlan:null, batchPlanKey:'', batchPlanError:'', reviewBody:null, reviewPlan:null,
   query:'', collection:'', pool:'all', page:0, previewId:null, previewReturn:null, selectionInitialized:false, timer:null,
 };
 const newSeed = () => crypto.getRandomValues(new Uint32Array(1))[0];
@@ -62,24 +71,86 @@ function saveDraft() {
     version:2, materialSelection:state.recipe, reviewRequired:state.needsReview,
     sources:[...state.selected].map(([id, sha256]) => ({id, sha256})),
     filters:{query:state.query, collection:state.collection, pool:state.pool},
-    model:$('model').value, limits:limits(),
+    model:$('model').value, limits:limits(), batch:{groups:modelGroups(),mode:state.batchMode,materials:state.materialsChoice},
   };
   try { sessionStorage.setItem(DRAFT_KEY, JSON.stringify(value)); } catch { /* The in-page draft remains usable. */ }
 }
-function storePending(value) {
-  if (value) sessionStorage.setItem(PENDING_KEY, JSON.stringify(value));
-  else { try { sessionStorage.removeItem(PENDING_KEY); } catch {} }
-  state.pending = value;
+function currentPending() { return state.pendingBatch || state.pending; }
+function storePending(value, kind='run') {
+  if (value) {
+    sessionStorage.setItem(kind==='batch'?BATCH_PENDING_KEY:PENDING_KEY,JSON.stringify(value));
+    if (kind==='batch') state.pendingBatch=value; else state.pending=value;
+  } else {
+    for (const key of [PENDING_KEY,BATCH_PENDING_KEY]) { try { sessionStorage.removeItem(key); } catch {} }
+    state.pending=null; state.pendingBatch=null;
+  }
 }
-function locked() { return state.loading || state.uploading || state.launching || !!state.pending; }
+function locked() { return state.loading || state.uploading || state.launching || !!currentPending(); }
+function modelGroups() {
+  return [...$('model-groups').children].map(row=>({model:row.querySelector('.group-model').value.trim(),count:row.querySelector('.group-count').value===''?NaN:Number(row.querySelector('.group-count').value)}));
+}
+function materialsMode() { return state.materialsChoice || (state.randomCount===0?'same':state.pins.length?'pinned-random':'random'); }
+function batchSettings() {
+  const groups=modelGroups();
+  const isBatch=groups.length>1 || groups[0]?.count!==1;
+  const total=groups.reduce((sum,group)=>sum+(Number.isSafeInteger(group.count)?group.count:0),0);
+  if (!isBatch) return {isBatch,total:1,plan:null,error:''};
+  if (!state.reviewedRecipe || state.needsReview || state.drawError) return {isBatch,total,plan:null,error:''};
+  const input={groups,mode:state.batchMode,materials:materialsMode(),materialSelection:state.reviewedRecipe};
+  const key=JSON.stringify(input);
+  if (key!==state.batchPlanKey) {
+    state.batchPlanKey=key; state.batchPlan=null; state.batchPlanError='';
+    try {
+      const plan=planBatch(input);
+      for (const entry of plan.entries) {
+        const sizes=entry.sourceIds.map(id=>sourceById(id)?.byteLength);
+        if (sizes.some(size=>!Number.isSafeInteger(size)||size<=0)) throw new Error('An image in a later draw is unavailable. Refresh the collection.');
+        if (sizes.reduce((sum,size)=>sum+size,0)>state.maxSourceBytes) throw new Error(`Run ${entry.index+1} exceeds the ${state.maxSourceBytes/1024/1024} MiB image limit. Choose fewer images or a smaller pool.`);
+      }
+      state.batchPlan=plan;
+    } catch(error) { state.batchPlanError=error.message; }
+  }
+  return {isBatch,total,plan:state.batchPlan,error:state.batchPlanError};
+}
+function addModelGroup(model='',count=1) {
+  const index=$('model-groups').children.length;
+  if (index>=BATCH_LIMITS.maxGroups) return;
+  const row=element('div','model-group'); row.dataset.groupIndex=index;
+  const input=$('model').cloneNode(); input.id=`group-model-${index}`; input.value=model; input.setAttribute('aria-label',`Model ${index+1}`);
+  const runs=$('run-count').cloneNode(); runs.id=`group-count-${index}`; runs.value=count; runs.setAttribute('aria-label',`Number of runs for model ${index+1}`);
+  const remove=element('button','remove-model','×'); remove.type='button'; remove.setAttribute('aria-label',`Remove model ${index+1}`);
+  remove.addEventListener('click',()=>{if(locked())return;row.remove();renumberModelGroups();updateControls();saveDraft();});
+  row.append(input,runs,remove); $('model-groups').append(row);
+}
+function renumberModelGroups() {
+  [...$('model-groups').children].forEach((row,index)=>{
+    row.dataset.groupIndex=index;
+    if (index===0) return;
+    const input=row.querySelector('.group-model'),runs=row.querySelector('.group-count'),remove=row.querySelector('.remove-model');
+    input.id=`group-model-${index}`;input.setAttribute('aria-label',`Model ${index+1}`);
+    runs.id=`group-count-${index}`;runs.setAttribute('aria-label',`Number of runs for model ${index+1}`);
+    remove.setAttribute('aria-label',`Remove model ${index+1}`);
+  });
+}
 function materialLocked() { return locked() || !state.ready || state.needsReview; }
 function updateControls() {
   const lock = locked();
   const materialLock = materialLocked();
   const active = state.runs.find(run => run.status === 'running');
+  const activeBatch=state.batches.find(batch=>batch.status==='running');
+  const batch=batchSettings();
+  const invalidGroups=modelGroups().some(group=>!Number.isInteger(group.count)||group.count<1||group.count>BATCH_LIMITS.maxRunsPerGroup||!/^[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,159}$/.test(group.model));
   for (const tile of state.tiles.values()) tile.querySelector('.material-pick').disabled=materialLock;
   for (const tray of ['pinned-tray','random-tray']) for (const button of $(tray).querySelectorAll('button')) button.disabled=materialLock;
-  $('model').disabled=lock || !state.ready;
+  for (const control of $('model-groups').querySelectorAll('input,button')) control.disabled=lock || !state.ready;
+  $('add-model').disabled=lock || !state.ready || $('model-groups').children.length>=BATCH_LIMITS.maxGroups;
+  $('batch-settings').hidden=!batch.isBatch; $('per-run-label').hidden=!batch.isBatch;
+  $('batch-mode').disabled=lock || !state.ready; $('batch-materials').disabled=lock || !state.ready;
+  $('batch-materials').value=materialsMode();
+  for (const radio of document.querySelectorAll('[name=batch-mode]')) radio.checked=radio.value===state.batchMode;
+  $('batch-total').textContent=`${batch.total} runs`;
+  $('batch-error').textContent=batch.error; $('batch-error').hidden=!batch.error;
+  $('batch-material-help').textContent=materialsMode()==='same'?'Every run receives the exact images on this table.':state.batchMode==='compare'?'Run 1 gets the same table across models, then run 2, and so on. Extra runs keep drawing.':materialsMode()==='pinned-random'?'Your pins stay in every run. Extras are drawn independently for each model.':'A fresh draw for every run, independent across models.';
   $('budget-presets').disabled=lock || !state.ready;
   $('custom-limits').disabled=lock || !state.ready;
   const invalidLimits = LIMIT_KEYS.some(key => !$(key).validity.valid);
@@ -98,7 +169,7 @@ function updateControls() {
   $('add-images').firstElementChild.textContent=state.uploading?'…':'+';
   $('empty-add').disabled=$('add-images').disabled;
   $('refresh-materials').disabled=lock;
-  $('review-materials').hidden=!state.needsReview || !!state.pending;
+  $('review-materials').hidden=!state.needsReview || !!currentPending();
   $('review-materials').disabled=lock || !state.ready;
   $('api-key').disabled=lock || state.credentialBusy || !state.ready;
   $('save-key').disabled=$('api-key').disabled;
@@ -106,14 +177,17 @@ function updateControls() {
   $('forget-key').disabled=lock || state.credentialBusy;
   $('retry-start').disabled=state.launching || state.loading;
   $('retry-start').textContent=state.launching?'Checking start…':'Retry start';
-  $('pending-notice').hidden=!state.pending || state.launching;
-  $('active-notice').hidden=!active || !!state.pending;
-  if (active) $('active-link').href=`/work.html?run=${encodeURIComponent(active.id)}`;
-  $('launch-run').disabled=lock || state.credentialBusy || !state.ready || !state.provider?.configured || !state.reviewedRecipe || !!state.drawError || state.needsReview || !state.selected.size || !!active || !$('model').value.trim() || !$('model').validity.valid || invalidLimits;
-  $('launch-run').firstElementChild.textContent=state.launching?'Starting…':'Start run';
+  $('pending-notice').hidden=!currentPending() || state.launching;
+  $('pending-message').textContent=state.pendingBatch?'The response was interrupted. Retrying this request won’t start a second batch.':'The response was interrupted. Retrying this request won’t start a second run.';
+  $('active-notice').hidden=(!active && !activeBatch) || !!currentPending();
+  $('active-message').textContent=activeBatch?'A batch is already working.':'A model is already working.';
+  if (activeBatch) { $('active-link').href=`/batch.html?batch=${encodeURIComponent(activeBatch.id)}`; $('active-link').textContent='View batch ↗'; }
+  else if (active) { $('active-link').href=`/work.html?run=${encodeURIComponent(active.id)}`; $('active-link').textContent='View work ↗'; }
+  $('launch-run').disabled=lock || state.credentialBusy || !state.ready || !state.provider?.configured || !state.reviewedRecipe || !!state.drawError || state.needsReview || !state.selected.size || !!active || !!activeBatch || invalidGroups || !!batch.error || (batch.isBatch&&!batch.plan) || invalidLimits;
+  $('launch-run').firstElementChild.textContent=state.launching?'Starting…':batch.isBatch?`Review ${batch.total} runs`:'Start run';
   $('launch-run').setAttribute('aria-busy', String(state.launching));
-  $('launch-help').textContent=state.launching?'Starting your run…':state.pending?'Retry the original start above.':state.loading?'Loading setup…':!state.ready?'Reload setup to continue.':state.uploading?'Adding your images…':active?'One run at a time. This one is still working.':state.needsReview?'Review the updated materials before starting.':state.drawError?'Adjust the materials above.':!state.provider?.configured?'Add an API key in Connection.':!$('model').value.trim()?'Choose a model to begin.':!$('model').validity.valid?'Enter a valid model ID.':invalidLimits?'Check the limits above.':'Come back for the finished work and its playback.';
-  $('run-summary').textContent=`${state.selected.size} ${state.selected.size===1?'image':'images'} · ${$('maxPieces').value || '—'} fragments max`;
+  $('launch-help').textContent=state.launching?'Starting your run…':currentPending()?'Retry the original start above.':state.loading?'Loading setup…':!state.ready?'Reload setup to continue.':state.uploading?'Adding your images…':activeBatch?'This batch is still working.':active?'One run at a time. This one is still working.':state.needsReview?'Review the updated materials before starting.':state.drawError?'Adjust the materials above.':!state.provider?.configured?'Add an API key in Connection.':!$('model').value.trim()?'Choose a model to begin.':invalidGroups?'Check each model and its run count.':batch.error?'Adjust the batch above.':invalidLimits?'Check the limits above.':'Come back for the finished work and its playback.';
+  $('run-summary').textContent=batch.isBatch?`${batch.total} runs · up to ${batch.total*Number($('maxTurns').value)||'—'} model turns total`:`${state.selected.size} ${state.selected.size===1?'image':'images'} · ${$('maxPieces').value || '—'} fragments max`;
   $('upload-capacity').textContent=state.uploadSlots>0?`PNG, JPEG or WebP · ${state.uploadSlots} upload ${state.uploadSlots===1?'slot':'slots'} available`:'Upload slots full. You can still choose from the collection.';
   if (state.previewId) $('toggle-preview-source').disabled=materialLock;
 }
@@ -250,7 +324,7 @@ function togglePin(id) {
   drawSelection(); saveDraft();
 }
 function restoreSelection() {
-  const receipt=state.pending;
+  const receipt=currentPending();
   const previous=receipt ? receipt.sourceIds.map(id=>({id,sha256:receipt.sourceHashes[id]})) : Array.isArray(draft?.sources) ? draft.sources : null;
   const recipe=receipt?.materialSelection || draft?.materialSelection;
   if (recipe && Number.isInteger(recipe.seed) && recipe.seed>=0 && recipe.seed<=0xffffffff && Array.isArray(recipe.pinnedIds) && Array.isArray(recipe.candidateIds)) {
@@ -283,7 +357,7 @@ async function loadCatalog(catalog) {
   state.maxSources=result.limits?.maxSources || 24; state.maxSourceBytes=result.limits?.maxSourceBytes || 24*1024*1024;
   state.uploadSlots=Math.max(0,Number(result.limits?.uploadSlots) || 0);
   if (!state.selectionInitialized) restoreSelection();
-  else if (!state.pending && (state.recipe?.catalogSnapshot!==state.snapshot || [...state.selected].some(([id,hash])=>sourceById(id)?.sha256!==hash))) state.needsReview=true;
+  else if (!currentPending() && (state.recipe?.catalogSnapshot!==state.snapshot || [...state.selected].some(([id,hash])=>sourceById(id)?.sha256!==hash))) state.needsReview=true;
   const options=document.createDocumentFragment();
   const all=element('option','','All collections'); all.value=''; options.append(all);
   for (const collection of [...new Set(state.sources.map(source=>source.collection).filter(Boolean))].sort()) {
@@ -314,15 +388,21 @@ async function loadProvider() {
   renderProvider();
 }
 async function loadRuns() { state.runs=(await request('/api/runs')).runs||[]; updateControls(); }
-function recoveredRun() { return state.pending && state.runs.find(run=>run.launch?.clientRequestId===state.pending.clientRequestId); }
-function acceptRun(run) {
-  storePending(null); saveDraft();
-  window.location.assign(`/?started=${encodeURIComponent(run.id)}`);
+async function loadBatches() { state.batches=(await request('/api/batches')).batches||[]; updateControls(); }
+function recoveredRun() {
+  if (state.pendingBatch) return state.batches.find(batch=>batch.launch?.clientRequestId===state.pendingBatch.clientRequestId);
+  return state.pending && state.runs.find(run=>run.launch?.clientRequestId===state.pending.clientRequestId);
 }
+function acceptRun(run) {
+  const isBatch=!!state.pendingBatch;
+  storePending(null); saveDraft();
+  window.location.assign(isBatch?`/batch.html?batch=${encodeURIComponent(run.id)}`:`/?started=${encodeURIComponent(run.id)}`);
+}
+
 async function loadSetup() {
   if (state.loading) return;
   state.loading=true; state.ready=false; pageError(); updateControls();
-  const results=await Promise.allSettled([loadCatalog(),loadProvider(),loadRuns()]);
+  const results=await Promise.allSettled([loadCatalog(),loadProvider(),loadRuns(),loadBatches()]);
   state.ready=results.every(result=>result.status==='fulfilled'); state.loading=false;
   const failure=results.find(result=>result.status==='rejected');
   if (failure) pageError(failure.reason.message);
@@ -336,10 +416,10 @@ async function loadSetup() {
 async function pollStatus() {
   if (document.hidden) return;
   if (!state.launching && !state.loading) {
-    await loadRuns().catch(()=>{});
+    await Promise.allSettled([loadRuns(),loadBatches()]);
     const recovered=recoveredRun(); if (recovered) { acceptRun(recovered); return; }
   }
-  state.timer=setTimeout(pollStatus,state.runs.some(run=>run.status==='running')?3000:10000);
+  state.timer=setTimeout(pollStatus,state.runs.some(run=>run.status==='running')||state.batches.some(batch=>batch.status==='running')?3000:10000);
 }
 function metadataRow(list,label,value) {
   list.append(element('dt','',label),element('dd','',value));
@@ -415,11 +495,13 @@ async function submitLaunch(body) {
   if (state.launching) return;
   state.launching=true; launchError(); $('refresh-materials').hidden=true; updateControls();
   try {
-    const result=await request('/api/runs',{method:'POST',body});
-    if (!result.run?.id) throw new Error('The server did not confirm the work ID.');
-    acceptRun(result.run);
+    const isBatch=!!state.pendingBatch;
+    const result=await request(isBatch?'/api/batches':'/api/runs',{method:'POST',body});
+    const work=isBatch?result.batch:result.run;
+    if (!work?.id) throw new Error('The server did not confirm the work ID.');
+    acceptRun(work);
   } catch(error) {
-    await loadRuns().catch(()=>{});
+    await Promise.allSettled([loadRuns(),loadBatches()]);
     const recovered=recoveredRun();
     if (recovered) { acceptRun(recovered); return; }
     // A server rejection is definite. Network/5xx responses keep the exact request for a safe manual retry.
@@ -431,12 +513,62 @@ async function submitLaunch(body) {
   } finally { state.launching=false; updateControls(); }
 }
 
+function renderReviewTable() {
+  if (!state.reviewPlan) return;
+  const index=Number($('review-table').value),entry=state.reviewPlan.entries[index];
+  if (!entry) return;
+  const fragment=document.createDocumentFragment();
+  for (const id of entry.sourceIds) {
+    const source=sourceById(id),figure=element('figure','review-source');figure.dataset.sourceId=id;
+    const frame=element('div','review-source-frame'); if(source)frame.append(sourceImage(source));
+    if (state.reviewPlan.materialSelection.pinnedIds.includes(id)) frame.append(element('span','material-state','Pinned'));
+    figure.append(frame,element('figcaption','',source?.name||id));fragment.append(figure);
+  }
+  $('review-table-images').replaceChildren(fragment);
+  const matching=state.reviewPlan.groups.filter((group,groupIndex)=>groupIndex!==entry.groupIndex&&group.count>entry.runIndex).length;
+  const comparison=state.reviewPlan.mode==='compare'&&state.reviewPlan.materials!=='same'?(matching?' · Matches this run number in the other models':' · An extra run for this model'):'';
+  $('review-table-detail').textContent=`Table ${index+1} of ${state.reviewPlan.totalRuns} · ${entry.sourceIds.length} images${comparison}`;
+  $('previous-table').disabled=index===0; $('next-table').disabled=index===state.reviewPlan.entries.length-1;
+}
+function openBatchReview(plan) {
+  if (!plan) return;
+  state.reviewPlan=structuredClone(plan);
+  state.reviewBody={clientRequestId:crypto.randomUUID(),spec:{prompt:TASK,...limits()},groups:structuredClone(plan.groups),mode:plan.mode,materials:plan.materials,materialSelection:structuredClone(plan.materialSelection),sourceIds:[...state.selected.keys()],sourceHashes:Object.fromEntries(state.selected)};
+  const options=document.createDocumentFragment();
+  for (const entry of plan.entries) { const option=element('option','',`${entry.model} · Run ${entry.runIndex+1}`);option.value=entry.index;options.append(option); }
+  $('review-table').replaceChildren(options);$('review-table').value='0';
+  $('batch-review-summary').textContent=`${plan.totalRuns} runs across ${plan.groups.length} ${plan.groups.length===1?'model':'models'} · up to ${plan.totalRuns*Number($('maxTurns').value)} model turns total. ${plan.materials==='same'?'One fixed table throughout.':plan.mode==='compare'?'Matching tables across models.':'Independent draws throughout.'}`;
+  $('confirm-batch').firstElementChild.textContent=`Start ${plan.totalRuns} runs`;
+  renderReviewTable();$('batch-review').showModal();$('close-batch-review').focus();
+}
+$('review-table').addEventListener('change',renderReviewTable);
+for (const [id,delta] of [['previous-table',-1],['next-table',1]]) $(id).addEventListener('click',()=>{$('review-table').value=String(Number($('review-table').value)+delta);renderReviewTable();});
+$('close-batch-review').addEventListener('click',()=>$('batch-review').close());
+$('batch-review').addEventListener('close',()=>{$('launch-run').focus({preventScroll:true});});
+$('confirm-batch').addEventListener('click',()=>{
+  if (!state.reviewBody||locked())return;
+  const body=structuredClone(state.reviewBody);
+  try { storePending(body,'batch'); } catch { $('batch-review').close();launchError('Browser session storage is unavailable. Enable it so an interrupted start can be recovered.');return; }
+  $('batch-review').close();saveDraft();submitLaunch(body);
+});
+
 $('fixed-prompt').textContent=TASK;
 if (typeof draft?.model==='string') $('model').value=draft.model.slice(0,160);
 for (const key of LIMIT_KEYS) if (Number.isSafeInteger(draft?.limits?.[key])) $(key).value=draft.limits[key];
-if (state.pending) {
-  $('model').value=state.pending.model;
-  for (const key of LIMIT_KEYS) $(key).value=state.pending[key];
+const restoredBatch=state.pendingBatch || draft?.batch;
+if (restoredBatch) {
+  state.batchMode=restoredBatch.mode==='compare'?'compare':'explore';
+  state.materialsChoice=['same','random','pinned-random'].includes(restoredBatch.materials)?restoredBatch.materials:null;
+  if (Array.isArray(restoredBatch.groups) && restoredBatch.groups.length) {
+    $('model').value=typeof restoredBatch.groups[0].model==='string'?restoredBatch.groups[0].model:'';
+    $('run-count').value=restoredBatch.groups[0].count ?? '';
+    for (const group of restoredBatch.groups.slice(1,BATCH_LIMITS.maxGroups)) addModelGroup(typeof group.model==='string'?group.model:'',group.count ?? '');
+  }
+}
+if (currentPending()) {
+  const settings=state.pendingBatch?.spec || state.pending;
+  if (!state.pendingBatch) $('model').value=settings.model;
+  for (const key of LIMIT_KEYS) $(key).value=settings[key];
 }
 renderBudget();
 function changeFilter() {
@@ -466,7 +598,10 @@ $('source-dialog').addEventListener('close',()=>{state.previewId=null;state.prev
 $('toggle-preview-source').addEventListener('click',()=>togglePin(state.previewId));
 for (const radio of document.querySelectorAll('[name=budget]')) radio.addEventListener('change',()=>{for(const [key,value]of Object.entries(PRESETS[radio.value]))$(key).value=value;renderBudget();saveDraft();});
 for (const key of LIMIT_KEYS) $(key).addEventListener('input',()=>{renderBudget();saveDraft();});
-$('model').addEventListener('input',()=>{updateControls();saveDraft();});
+$('model-groups').addEventListener('input',()=>{updateControls();saveDraft();});
+$('add-model').addEventListener('click',()=>{if(locked())return;addModelGroup('',1);updateControls();saveDraft();$('model-groups').lastElementChild.querySelector('.group-model').focus();});
+for (const radio of document.querySelectorAll('[name=batch-mode]')) radio.addEventListener('change',()=>{state.batchMode=radio.value;updateControls();saveDraft();});
+$('batch-materials').addEventListener('change',()=>{state.materialsChoice=$('batch-materials').value;updateControls();saveDraft();});
 $('key-form').addEventListener('submit',async event=>{
   event.preventDefault(); if(locked()||state.credentialBusy)return;
   let apiKey=$('api-key').value.trim(); if(!apiKey)return;
@@ -487,12 +622,14 @@ $('run-form').addEventListener('submit',event=>{
   event.preventDefault(); if($('launch-run').disabled)return;
   $('customize-budget').open=LIMIT_KEYS.some(key=>!$(key).validity.valid)||$('customize-budget').open;
   if(!$('run-form').reportValidity())return;
+  const batch=batchSettings();
+  if (batch.isBatch) { openBatchReview(batch.plan); return; }
   const sourceIds=[...state.selected.keys()];
   const body={provider:'openai',model:$('model').value.trim(),prompt:TASK,...limits(),sourceIds,sourceHashes:Object.fromEntries(state.selected),materialSelection:structuredClone(state.reviewedRecipe),clientRequestId:crypto.randomUUID()};
   try { storePending(body); } catch { launchError('Browser session storage is unavailable. Enable it so an interrupted start can be recovered.'); return; }
   saveDraft(); submitLaunch(body);
 });
-$('retry-start').addEventListener('click',()=>{if(state.pending&&!state.loading)submitLaunch(state.pending);});
+$('retry-start').addEventListener('click',()=>{if(currentPending()&&!state.loading)submitLaunch(currentPending());});
 $('refresh-materials').addEventListener('click',async()=>{await loadSetup();if(state.ready)reviewMaterials();});
 $('retry-load').addEventListener('click',loadSetup);
 document.addEventListener('visibilitychange',()=>{clearTimeout(state.timer);if(!document.hidden)pollStatus();});

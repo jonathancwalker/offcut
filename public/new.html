@@ -17,8 +17,8 @@
   <main class="new-main">
     <div class="new-heading"><div><p class="new-kicker">New run · Materials</p><h1>Set the table.</h1></div><p class="new-intro">Pin a few.<br>Shuffle the rest.</p></div>
     <div id="page-error" class="notice error-notice" role="alert" hidden><p id="page-error-message"></p><button id="retry-load" type="button" class="text-button">Reload setup</button></div>
-    <div id="active-notice" class="notice" hidden><p>A model is already working.</p><a id="active-link" href="/" class="text-button">View work ↗</a></div>
-    <div id="pending-notice" class="notice pending-notice" role="status" hidden><div><strong>Let’s check that start.</strong><p>The response was interrupted. Retrying this request won’t start a second run.</p></div><button id="retry-start" type="button" class="secondary-button">Retry start</button></div>
+    <div id="active-notice" class="notice" hidden><p id="active-message">A model is already working.</p><a id="active-link" href="/" class="text-button">View work ↗</a></div>
+    <div id="pending-notice" class="notice pending-notice" role="status" hidden><div><strong>Let’s check that start.</strong><p id="pending-message">The response was interrupted. Retrying this request won’t start a second run.</p></div><button id="retry-start" type="button" class="secondary-button">Retry start</button></div>
     <div class="setup-layout">
       <section class="materials-area" aria-labelledby="materials-heading">
         <div class="section-heading"><h2 id="materials-heading">Collection <span id="catalog-count"></span></h2><button id="add-images" type="button" class="secondary-button" disabled><span aria-hidden="true">+</span> Add images</button><input id="image-files" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden></div>
@@ -46,12 +46,20 @@
         </section>
         <div class="run-settings" aria-label="Run settings">
         <section class="model-section" aria-labelledby="model-heading">
-          <div class="section-heading"><h2 id="model-heading">Model</h2><span class="provider-name">OpenAI</span></div>
-          <label class="sr-only" for="model">Model ID</label><input id="model" type="text" list="available-models" form="run-form" required maxlength="160" pattern="[a-zA-Z0-9][a-zA-Z0-9._:\/\-]{0,159}" autocomplete="off" placeholder="Choose or enter a model ID" aria-describedby="model-help" disabled><datalist id="available-models"></datalist>
+          <div class="section-heading"><h2 id="model-heading">Who’s at the table</h2><span class="provider-name">OpenAI</span></div>
+          <div class="model-column-labels" aria-hidden="true"><span>Model</span><span>Runs</span></div>
+          <div id="model-groups"><div class="model-group" data-group-index="0"><label class="sr-only" for="model">Model ID</label><input id="model" class="group-model" type="text" list="available-models" form="run-form" required maxlength="160" pattern="[a-zA-Z0-9][a-zA-Z0-9._:\/\-]{0,159}" autocomplete="off" placeholder="Choose a model" aria-describedby="model-help" disabled><label class="sr-only" for="run-count">Number of runs</label><input id="run-count" class="group-count" type="number" form="run-form" min="1" max="50" step="1" value="1" required disabled><span class="model-row-spacer"></span></div></div>
+          <datalist id="available-models"></datalist><button id="add-model" type="button" class="text-button add-model" disabled>+ Add another model</button>
           <p id="model-help" class="field-help">Choose a model that accepts images.</p>
           <details id="connection-settings" class="connection-settings"><summary><span id="provider-status">Checking key…</span><span class="connection-toggle">Connection</span></summary><form id="key-form"><label for="api-key">API key</label><div class="key-entry"><input id="api-key" type="password" autocomplete="off" spellcheck="false" placeholder="Paste API key" aria-describedby="key-help" disabled><button id="save-key" class="secondary-button" type="submit" disabled>Save</button></div><p id="key-help" class="field-help">Session only. Never saved to browser storage.</p></form><div class="connection-tools"><button id="test-connection" class="text-button" type="button" disabled>Check access &amp; load models</button><button id="forget-key" class="text-button" type="button" hidden>Forget key</button></div><p id="connection-message" class="field-help" role="status"></p></details>
         </section>
-        <section class="budget-section" aria-labelledby="budget-heading"><div class="section-heading"><h2 id="budget-heading">Room to work</h2><span id="budget-name">Standard</span></div>
+        <section id="batch-settings" class="batch-settings" aria-labelledby="batch-heading" hidden>
+          <div class="section-heading"><h2 id="batch-heading">A series of runs</h2><span id="batch-total"></span></div>
+          <fieldset id="batch-mode" class="batch-modes"><legend class="sr-only">How models receive materials</legend><label><input type="radio" name="batch-mode" value="explore" checked><span><strong>Explore</strong><small>Independent draws</small></span></label><label><input type="radio" name="batch-mode" value="compare"><span><strong>Compare models</strong><small>Matching tables</small></span></label></fieldset>
+          <label class="batch-material-label" for="batch-materials">Between runs</label><select id="batch-materials"><option value="random">Fresh draw each time</option><option value="pinned-random">Keep pins, draw fresh extras</option><option value="same">Keep this exact table</option></select>
+          <p id="batch-material-help" class="field-help"></p><p id="batch-error" class="selection-error" role="alert" hidden></p>
+        </section>
+        <section class="budget-section" aria-labelledby="budget-heading"><div class="section-heading"><h2 id="budget-heading">Room to work <span id="per-run-label" hidden>per run</span></h2><span id="budget-name">Standard</span></div>
           <fieldset id="budget-presets" class="budget-presets" disabled><legend class="sr-only">Run budget</legend><label class="budget-option"><input type="radio" name="budget" value="small"><span class="budget-choice"><strong>Small</strong><span><b>12</b> fragments <i>·</i> 60 actions</span></span></label><label class="budget-option"><input type="radio" name="budget" value="standard" checked><span class="budget-choice"><strong>Standard</strong><span><b>24</b> fragments <i>·</i> 120 actions</span></span></label><label class="budget-option"><input type="radio" name="budget" value="extended"><span class="budget-choice"><strong>Extended</strong><span><b>48</b> fragments <i>·</i> 240 actions</span></span></label></fieldset>
           <details id="customize-budget" class="customize-budget"><summary>Adjust limits <span id="secondary-limits">12 turns · 10 min max</span></summary><p class="field-help">Maximum allowances. The model can finish sooner.</p><fieldset id="custom-limits" class="custom-limits" disabled><legend class="sr-only">Custom run limits</legend><label>Fragments<input id="maxPieces" form="run-form" type="number" min="1" max="64" step="1" value="24" required></label><label>Actions<input id="maxActions" form="run-form" type="number" min="1" max="240" step="1" value="120" required></label><label>Model turns<input id="maxTurns" form="run-form" type="number" min="1" max="40" step="1" value="12" required></label><label>Minutes<input id="maxMinutes" form="run-form" type="number" min="1" max="60" step="1" value="10" required></label><label class="wide-field">Output tokens per turn<input id="maxOutputTokens" form="run-form" type="number" min="256" max="16384" step="1" value="4096" required></label></fieldset></details>
         </section>
@@ -62,6 +70,13 @@
     </div>
   </main>
   <dialog id="source-dialog" class="source-dialog" aria-labelledby="source-title"><div class="source-dialog-heading"><h2 id="source-title"></h2><button id="close-source" class="icon-button" aria-label="Close image details">×</button></div><div class="source-dialog-image"><img id="source-full" alt=""></div><div class="source-dialog-footer"><dl id="source-metadata"></dl><button id="toggle-preview-source" class="secondary-button" type="button">Select image</button></div></dialog>
+  <dialog id="batch-review" class="batch-review" aria-labelledby="batch-review-title">
+    <div class="batch-review-heading"><div><p class="new-kicker">Before they begin</p><h2 id="batch-review-title">The tables are set.</h2></div><button id="close-batch-review" class="icon-button" type="button" aria-label="Close batch review">×</button></div>
+    <p id="batch-review-summary" class="batch-review-summary"></p>
+    <div class="batch-review-navigation"><button id="previous-table" type="button" class="secondary-button" aria-label="Previous table">←</button><label class="sr-only" for="review-table">Preview a planned run</label><select id="review-table"></select><button id="next-table" type="button" class="secondary-button" aria-label="Next table">→</button></div>
+    <p id="review-table-detail" class="field-help"></p><div id="review-table-images" class="review-table-images"></div>
+    <div class="batch-review-footer"><p class="field-help">These exact images are saved before any model starts. Runs work through the queue one at a time.</p><button id="confirm-batch" type="button" class="primary-button start-button"><span>Start batch</span><span aria-hidden="true">↗</span></button><p class="billing-note">Uses your API account. No dollar cap yet.</p></div>
+  </dialog>
   <script type="module" src="/new.js"></script>
 </body>
 </html>

@@ -739,3 +739,48 @@ test('frozen material manifests retain bounded catalog provenance and omit arbit
   t.after(() => restarted.close());
   assert.deepEqual(restarted.get(run.id).sourceManifest[0], manifest);
 });
+
+test('batch provenance and launch linkage are validated before connection, frozen, and recovered from the durable launch event', async t => {
+  const { manager, source, dataDir, providerFactory, factoryCalls } = await setup(t, async () => output([], true));
+  const batch = { id: `batch-${randomUUID()}`, groupIndex: 1, runIndex: 7 };
+  const launch = { clientRequestId: randomUUID(), requestFingerprint: 'd'.repeat(64) };
+  for (const invalid of [{ ...batch, privateKey: 'secret' }, { ...batch, id: 'other' }, { ...batch, groupIndex: 8 }, { ...batch, runIndex: 50 }]) {
+    await assert.rejects(manager.start({ spec, sources: [source], batch: invalid }), /batch provenance/);
+  }
+  assert.equal(factoryCalls(), 0);
+  const original = structuredClone(batch);
+  const starting = manager.start({ spec, sources: [source], batch, launch });
+  batch.groupIndex = 4;
+  const run = await starting;
+  const ended = await manager.wait(run.id);
+  assert.equal(ended.status, 'completed');
+  const file = join(dataDir, run.id, 'run.json');
+  const saved = JSON.parse(await readFile(file, 'utf8'));
+  assert.equal(saved.status, 'completed', 'wait resolves after the final checkpoint is durable.');
+  assert.deepEqual(ended.batch, original);
+  assert.deepEqual(manager.events(run.id)[0].batch, original);
+  assert.deepEqual((await manager.bundle(run.id)).run.batch, original);
+  await manager.close();
+  saved.batch = { ...original, groupIndex: 6 };
+  saved.launch = { clientRequestId: randomUUID(), requestFingerprint: 'a'.repeat(64) };
+  await writeFile(file, JSON.stringify(saved));
+  const recovered = await createRunManager({ dataDir, providerFactory });
+  t.after(() => recovered.close());
+  assert.deepEqual(recovered.get(run.id).batch, original);
+  assert.deepEqual(recovered.get(run.id).launch, launch);
+  assert.equal(factoryCalls(), 1);
+});
+
+test('legacy run recovery removes invented batch labels from a stale summary', async t => {
+  const { manager, source, dataDir, providerFactory } = await setup(t, async () => output([], true));
+  const run = await manager.start({ spec, sources: [source] });
+  await manager.wait(run.id);
+  await manager.close();
+  const file = join(dataDir, run.id, 'run.json');
+  const saved = JSON.parse(await readFile(file, 'utf8'));
+  saved.batch = { id: `batch-${randomUUID()}`, groupIndex: 0, runIndex: 0 };
+  await writeFile(file, JSON.stringify(saved));
+  const recovered = await createRunManager({ dataDir, providerFactory });
+  t.after(() => recovered.close());
+  assert.equal(Object.hasOwn(recovered.get(run.id), 'batch'), false);
+});

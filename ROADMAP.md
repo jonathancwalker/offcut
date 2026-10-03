@@ -1,14 +1,14 @@
 # Offcut roadmap
 
-**Current status — October 2, 2026, after PR #9:** Offcut has a Library, a New run page with a fixed creative task, and read-only Work pages. The OpenAI runner saves isolated runs with frozen sources, native image observations, append-only events, limits, stop, export and recovery. Work pages provide accepted-action playback, speed controls, GIF export, brief fragment outlines, source/fragment inspection, and explicitly attributed model writing. Physical trimming now preserves retained pieces, usable offcuts, holes and lineage. Three early works are included as truthful archives. See [the component map](docs/PRODUCT.md) and [model interface](docs/MODEL_INTERFACE.md).
+**Current status — October 2, 2026:** Offcut has a Library, a New run page with a fixed creative task, and read-only Work pages. The OpenAI runner saves isolated runs with frozen sources, native image observations, append-only events, limits, stop, export and recovery. Work pages provide accepted-action playback, speed controls, GIF export, brief fragment outlines, source/fragment inspection, and explicitly attributed model writing. Physical trimming now preserves retained pieces, usable offcuts, holes and lineage. Three early works are included as truthful archives. See [the component map](docs/PRODUCT.md) and [model interface](docs/MODEL_INTERFACE.md).
 
-The **materials and run setup** foundation is implemented on this branch: the picker browses the collected catalog, combines pinned images with an optional random draw, and freezes the reviewed selection with its reproducible recipe. Expanding and curating the image library is next. A small static public gallery remains a parallel priority. Additional providers, repeat/comparison queues and trajectory research follow; hosted open models, community features and learned embeddings remain later work. The public gallery has not been deployed.
+The **materials picker** is merged, the local collection has expanded, and **model-group batches** are implemented on this branch. Batches support independent draws in Explore, matching draws in Compare models, and an exact review of every planned table before launch. See [batch behavior and limits](docs/BATCHES.md). Curated study sets and a small static public gallery are next priorities, followed by additional providers and trajectory research. Hosted open models, community features and learned embeddings remain later work. The public gallery has not been deployed.
 
 Originally drafted September 27, 2026; the sequence below is updated for the current implementation. It proposes implementation order, not a calendar commitment or authorization for a paid run campaign. Hosting, repository visibility and dollar spending controls remain implementation decisions; current runs expose request/action/time bounds and explicitly unavailable dollar estimates.
 
 ## Materials and run setup
 
-The current starter pack contains 21 images. The on-demand Cleveland collector has 12 locally collected images as of October 2. Both are now browsable together in the picker; collected images remain local data rather than bundled Git assets. **120–200 varied images is an initial curation target**, not an already collected library. See [collection commands and provenance](docs/SOURCE_COLLECTION.md).
+The current starter pack contains 21 images. A bulk collection added 250 Cleveland Museum of Art images, bringing the local collected catalog to 262 and the combined picker to **283 images** as of October 2. Collected images remain local data rather than bundled Git assets. The initial volume target is met; deliberately balanced study packs still need curation. See [collection commands and provenance](docs/SOURCE_COLLECTION.md).
 
 - **Separate catalog from active inventory.** Browse a growing disk-backed catalog through thumbnails, search and filters, loading only selected image bytes for a run. The shared studio inventory currently holds at most 24 images, and each run also accepts at most 24 images and 24 MiB of source data. A larger catalog should not require loading every image into that inventory or increasing the run limits.
 - **Pin required materials and choose an additional random count.** Pinned images are always included in the run's materials. Allow zero additional images for manual-only selection and zero pins for random-only selection. Require at least one image overall and validate the final selection against count and byte limits. Inclusion supplies material to the artist; requiring every supplied image to appear in the artwork would be a separate experimental rule.
@@ -16,25 +16,26 @@ The current starter pack contains 21 images. The on-demand Cleveland collector h
 - **Review and freeze the exact selection.** Show a contact sheet, attribution, pinned/random membership and the final count before launch. Launch uses those exact ordered source IDs, bytes and hashes; a retry keeps the reviewed draw. Record the selection recipe, seed, sampling algorithm/version and an immutable catalog/candidate-pool snapshot so the draw can be reconstructed after the library changes. The frozen images remain authoritative for replay.
 - **Defer reusable named material sets.** First make one selection reliable and pleasant to review; saved material sets and pack management can build on the same frozen manifests later.
 
-The picker now implements these core controls, with pagination, full-image attribution, selected-byte limits, draft restoration and launch-retry protection. Runs record candidate IDs/hashes alongside the catalog digest; selected files retain exact bytes and bounded provenance. The collector already provides duplicate detection, budgets and resume checkpoints. Next: curate toward the image target and refine the flow through real use. No bulk collection or paid model campaign has been run as part of this interface change.
+The picker now implements these core controls, with pagination, full-image attribution, selected-byte limits, draft restoration and launch-retry protection. Runs record candidate IDs/hashes alongside the catalog digest; selected files retain exact bytes and bounded provenance. The collector already provides duplicate detection, budgets and resume checkpoints. The bulk collection is complete. Next: curate experimental packs and refine the flow through real use. Batch validation uses simulated providers; no paid model campaign was run for this feature.
 
 ## Milestones and release gates
 
 | Milestone | What ships | Completion criterion |
 | --- | --- | --- |
 | A. Public preview, in parallel | A short explanation, selected archived/recorded works, original source sheets, accepted-action replay, permanent artwork pages, and a methods note. | A visitor can understand the constraint, inspect a work, and watch its construction. Exploratory works retain their actual starting conditions and authoring labels. |
-| B. Runner and material-selection foundation implemented | The OpenAI adapter, private key setup, isolated storage, bounded loop, events and catalog picker are implemented, including pins, random draws and exact review. Curate a larger varied collection next. | A run freezes the reviewed materials and reproducible selection recipe, then finishes or stops cleanly and exports a replayable bundle. |
+| B. Runner and material-selection foundation implemented | The OpenAI adapter, private key setup, isolated storage, bounded loop, catalog picker and sequential model-group batches are implemented. Explore and Compare models preserve reviewed source draws and per-run limits. | A run freezes the reviewed materials and reproducible selection recipe, then finishes or stops cleanly and exports a replayable bundle. |
 | C. First public study | Several supported multimodal models, a repeated-run queue, blind review flow, a filterable gallery of study works, and a complete pilot report. | Every attempted study run is accounted for; published works link to their materials, protocol, replay, and results. The first public release does not wait for a universal creativity score. |
 | D. Broader materials and open models | After the immediate catalog/picker milestone: more archive adapters, reusable pack management, Hugging Face routing, and a configurable compatible endpoint for self-hosted vision-language models. | A selected source pack is reproducible; an eligible hosted open model can complete the same action loop. Each route passes image-input and action-output checks. |
 | E. Community creation and publication | Accounts, private drafts, validated project uploads, publishing controls, collections, shared challenges, and remix lineage. | A person can publish a collage and its available timeline with clear provenance, attribution, and authoring labels. Imported histories are distinguished from platform-recorded runs. |
 
-Milestone A can begin from saved artifacts alongside the materials/setup work in B. Milestone C needs additional adapters, a repeat queue and a frozen comparison protocol on top of the existing run records. Community publishing depends on a validated public artifact format. HF routing remains later scope.
+Milestone A can begin from saved artifacts alongside the materials/setup work in B. Milestone C needs additional adapters and a frozen comparison protocol on top of the implemented batch queue and run records. Community publishing depends on a validated public artifact format. HF routing remains later scope.
 
 ```mermaid
 flowchart LR
     D[Saved works] --> P[Static public preview]
     R[Existing runner and collector] --> M[Catalog and material selection]
-    M --> O[More providers and repeat queues]
+    M --> B[Model-group batches]
+    B --> O[More providers]
     O --> S[Trajectory research and scoped study]
     P --> G[Gallery of study results]
     S --> G
@@ -43,7 +44,7 @@ flowchart LR
 
 ## 1. Image library and experimental source packs
 
-Curate toward roughly 120–200 deliberately varied images: photography, botanical illustration, printed pages, maps, diagrams, textiles, isolated objects, and dense scenes. The earlier proposal for 12 named, fixed packs of three images remains a later study-curation target, not an existing collection or a prerequisite for the first preview. Preserve the original botanical/city/space set as a legacy experimental pack when saved material sets are added.
+Curate deliberately varied packs from the expanded catalog: photography, botanical illustration, printed pages, maps, diagrams, textiles, isolated objects, and dense scenes. Add archives where those categories remain thin. The earlier proposal for 12 named, fixed packs of three images remains a later study-curation target, not an existing collection or a prerequisite for the first preview. Preserve the original botanical/city/space set as a legacy experimental pack when saved material sets are added.
 
 Use two distinct objects:
 
@@ -81,7 +82,7 @@ Validate each route with the same small fixture before it appears as selectable 
 
 ## 3. Experiment setup and run controls
 
-The following is a retained long-term experiment-workbench proposal. The current observer product uses a fixed task, model/material/budget setup and read-only Work pages. The next UI milestone is the material-selection flow above. Editable creative prompts, human interventions, Explore/Study modes and a live editable canvas are not part of that next milestone; revisit them only as separately defined research conditions.
+The current observer product uses a fixed task, model/material/budget setup, batch review and read-only Work pages. Its implemented Explore and Compare models modes control how source draws are shared; neither allows human intervention during a run. The following remains a long-term experiment-workbench proposal. Editable creative prompts, intervention conditions and a live editable canvas require separately defined research scope.
 
 Use a simple sequence: **Materials → Models → Rules → Review and run**.
 
@@ -96,9 +97,9 @@ The default form should expose:
 
 Put sampling settings, provider-specific compute controls, image sizing, coordinate aids, and batch size under advanced controls. Default to a fresh context and blank canvas for a controlled study. Human-seeded work is a separate, explicit condition.
 
-Provide two modes:
+Possible later authoring conditions, separate from the implemented batch sampling modes:
 
-- **Explore:** flexible work, source changes and human intervention allowed and recorded.
+- **Assisted exploration:** flexible work, source changes and human intervention allowed and recorded.
 - **Study:** frozen inputs, independent runs, fixed rules and observation policy. A human takeover produces a labeled intervention or a new branch of the work rather than silently changing the study condition.
 
 The run view should show the live canvas, current state, attempted and accepted actions, remaining budget, estimated/reported usage, and clear stop/failure reasons. Add cancel, pause between turns, and recovery from a saved checkpoint. An interrupted network request must not silently duplicate a placement or restart the whole artwork. Start with one worker and expand concurrency after isolation and budget accounting work.
@@ -165,14 +166,16 @@ The detailed [research plan](docs/RESEARCH_PLAN.md) defines these questions and 
 
 ## Immediate implementation sequence
 
-Updated October 2 after implementing the first material picker; this sequence does not authorize a paid experiment campaign. The detailed workbench and study designs above remain proposals, with the current observer interface taking precedence for near-term UI scope.
+Updated October 2 after the material picker, bulk collection and batch implementation; this sequence does not authorize a paid experiment campaign. The detailed workbench and study designs above remain proposals, with the current observer interface taking precedence for near-term UI scope.
 
 | Order | Work item | Evidence that it is done |
 | --- | --- | --- |
 | Implemented | Connect the catalog and pinned-plus-random picker | A catalog larger than 24 images is searchable and browsable; pins, count, filtered pool, random-only reroll and exact review work together. Launch freezes selected bytes, hashes, recipe, seed and candidate manifest. |
-| Next | Curate toward 120–200 varied images and refine setup | Deliberately varied additions retain provenance and work with the picker; individual pool exclusions and saved sets can follow observed needs. |
+| Implemented | Expand the local image catalog | 250 new images bring the collected catalog to 262 and the combined picker to 283, with hashes, dimensions and attribution verified. |
+| Implemented | Run model-group batches | Per-model counts, independent or matching draws, pinned extras, exact table review, sequential execution, stop and interruption records work together. |
+| Next | Curate study packs and refine setup | Balanced selections retain provenance; individual pool exclusions and saved sets can follow observed needs. |
 | Parallel | Publish a small static gallery preview | Deliberately selected archived/recorded works have permanent pages, source sheets, provenance and replay, with truthful exploratory labels. |
-| 3 | Add provider routes and repeat/comparison queues | Independent attempts share frozen material hashes and protocol; all attempts, usage, errors and termination reasons are retained. |
+| 3 | Add provider routes | Additional image-capable providers use the same commands and recorded observation policy, with route-specific validation and usage records. |
 | 4 | Develop trajectory research and a scoped pilot/report | Stated intentions are linked to observations/actions and independently assessed outcomes; every attempted run is accounted for and claims reflect the design's limits. Paid runs require a separately agreed scope and budget. |
 | Later | Saved material sets, broader archives, HF/self-hosted routes, community publication and learned representations | Each extension has its own validated contract; learning a representation follows evidence from descriptive measures, frozen encoders and held-out human judgments. |
 

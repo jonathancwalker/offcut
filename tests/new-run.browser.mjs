@@ -6,6 +6,7 @@ import {homedir} from 'node:os';
 import {join} from 'node:path';
 import {createHash} from 'node:crypto';
 import {drawMaterialIds} from '../public/material-selection.mjs';
+import {planBatch} from '../public/batch-plan.mjs';
 
 const require=createRequire(import.meta.url);
 let playwright;
@@ -15,7 +16,7 @@ const origin=process.env.OFFCUT_TEST_URL || 'http://127.0.0.1:4324';
 assert.match(origin,/^http:\/\/(?:127\.0\.0\.1|localhost):\d+$/);
 assert.notEqual(new URL(origin).port,'4317','Never run browser fixtures against the live user server.');
 const browser=await playwright.chromium.launch({headless:true});
-const DRAFT='offcut.new-run.draft.v2', LEGACY='offcut.new-run.draft.v1', PENDING='offcut.new-run.pending.v1';
+const DRAFT='offcut.new-run.draft.v2', LEGACY='offcut.new-run.draft.v1', PENDING='offcut.new-run.pending.v1', BATCH_PENDING='offcut.new-batch.pending.v1';
 const errors=[], checks=[];
 const sources=Array.from({length:75},(_,index)=>({
   id:`image-${String(index+1).padStart(3,'0')}`,name:`${index%2?'Still life':'Botanical study'} ${index+1}`,
@@ -29,10 +30,10 @@ const ids=async(page,tray)=>page.locator(`#${tray} [data-source-id]`).evaluateAl
 const selection=async page=>[...await ids(page,'pinned-tray'),...await ids(page,'random-tray')];
 const stored=(page,key=DRAFT)=>page.evaluate(key=>JSON.parse(sessionStorage.getItem(key)),key);
 const mark=name=>{checks.push(name);console.log(`PASS ${name}`);};
-async function fixture({catalog=baseCatalog(),storage={},mobile=false,post='failure',runList=[]}={}) {
+async function fixture({catalog=baseCatalog(),storage={},mobile=false,post='failure',runList=[],batchList=[]}={}) {
   const context=await browser.newContext(mobile?{viewport:{width:390,height:844},isMobile:true,hasTouch:true}:{viewport:{width:1440,height:1100}});
   const page=await context.newPage(); page.on('pageerror',error=>errors.push(error.message));
-  const fixture={context,page,catalog,requests:[],uploads:[],runList,post};
+  const fixture={context,page,catalog,requests:[],batchRequests:[],uploads:[],runList,batchList,post,providerConfigured:true,keyRequests:[]};
   await page.addInitScript(storage=>{
     // Seed storage once so reloads exercise the app's persisted draft/receipt.
     if (!sessionStorage.getItem('fixture-initialized')) {
@@ -50,12 +51,25 @@ async function fixture({catalog=baseCatalog(),storage={},mobile=false,post='fail
     const request=route.request(),path=new URL(request.url()).pathname;
     const send=(value,status=200)=>route.fulfill({status,contentType:'application/json',body:JSON.stringify(value)});
     if (path==='/api/source-catalog') return send(fixture.catalog);
-    if (path==='/api/providers') return send({providers:[{id:'openai',configured:true,keySource:'environment'}],defaultModel:'fixture-vision'});
+    if (path==='/api/providers') return send({providers:[{id:'openai',configured:fixture.providerConfigured,keySource:fixture.providerConfigured?'environment':null}],defaultModel:'fixture-vision'});
+    if (path==='/api/providers/openai' && request.method()==='POST') {
+      fixture.keyRequests.push(request.postDataJSON());fixture.providerConfigured=true;return send({provider:{id:'openai',configured:true,keySource:'session'}});
+    }
+    if (path==='/api/providers/openai/test' && request.method()==='POST') return send({models:['fixture-vision']});
+    if (path==='/api/batches' && request.method()==='GET') return send({batches:fixture.batchList});
+    if (path==='/api/batches' && request.method()==='POST') {
+      const body=request.postDataJSON();fixture.batchRequests.push(body);
+      if (fixture.post==='success') return send({batch:{id:'batch-fixture'}});
+      if (fixture.post==='reject') return send({error:'The catalog changed. Review your images.'},409);
+      if (fixture.post==='missing-key') return send({error:'Connect an OpenAI API key before starting an experiment.'},400);
+      return route.abort('connectionreset');
+    }
     if (path==='/api/runs' && request.method()==='GET') return send({runs:fixture.runList});
     if (path==='/api/runs' && request.method()==='POST') {
       const body=request.postDataJSON();fixture.requests.push(body);
       if (fixture.post==='success') return send({run:{id:'run-fixture'}});
       if (fixture.post==='reject') return send({error:'The catalog changed. Review your images.'},409);
+      if (fixture.post==='missing-key') return send({error:'Connect an OpenAI API key before starting an experiment.'},400);
       return route.abort('connectionreset');
     }
     if (path==='/api/sources' && request.method()==='POST') {
@@ -72,6 +86,7 @@ async function fixture({catalog=baseCatalog(),storage={},mobile=false,post='fail
   });
   // The destination is observed without loading the library or its API calls.
   await page.route(`${origin}/?started=*`,route=>route.fulfill({status:200,contentType:'text/html',body:'<title>Started</title>'}));
+  await page.route(`${origin}/batch.html?batch=*`,route=>route.fulfill({status:200,contentType:'text/html',body:'<title>Batch started</title>'}));
   await page.goto(`${origin}/new.html`);
   await page.waitForFunction(()=>!document.querySelector('#source-search').disabled);
   return fixture;
@@ -265,6 +280,119 @@ try {
     assert.equal(await page.locator('#pin-count').textContent(),'1');assert.equal(await page.locator('#random-count').inputValue(),'5');
     await page.screenshot({path:'/private/tmp/offcut-material-picker-fixture-mobile.png',fullPage:true});
     mark('mobile layout, touch-size controls and tray actions');await f.context.close();
+  }
+  {
+    const f=await fixture(),{page}=f;
+    const firstDraw=await selection(page),originalRecipe=(await stored(page)).materialSelection;
+    await page.locator('#run-count').fill('3');
+    assert.equal(await page.locator('#batch-settings').isVisible(),true);
+    assert.equal(await page.locator('#batch-materials').inputValue(),'random');
+    assert.match(await page.locator('#run-summary').textContent(),/3 runs.*36 model turns total/);
+    await page.locator('#add-model').click();await page.locator('#group-model-1').fill('other-vision');await page.locator('#group-count-1').fill('2');
+    assert.match(await page.locator('#run-summary').textContent(),/5 runs.*60 model turns total/);
+    await page.locator('#launch-run').click();await page.locator('#batch-review').waitFor({state:'visible'});
+    assert.equal(f.batchRequests.length,0,'reviewing has not launched paid work');
+    const plan=planBatch({groups:[{model:'fixture-vision',count:3},{model:'other-vision',count:2}],mode:'explore',materials:'random',materialSelection:originalRecipe});
+    for (const entry of plan.entries) {
+      await page.locator('#review-table').selectOption(String(entry.index));
+      assert.deepEqual(await ids(page,'review-table-images'),entry.sourceIds);
+    }
+    assert.deepEqual(plan.entries[0].sourceIds,firstDraw,'the first table is the reviewed source draw');
+    assert.notDeepEqual(plan.entries[0].sourceIds,plan.entries[3].sourceIds,'Explore uses independent draws for model groups');
+    await page.locator('#close-batch-review').click();
+    assert.deepEqual((await stored(page)).materialSelection,originalRecipe,'previewing never changes the seed or source draft');
+    await page.locator('[name=batch-mode][value=compare]').check();
+    await page.locator('#launch-run').click();
+    await page.locator('#review-table').selectOption('0');const sharedFirst=await ids(page,'review-table-images');
+    await page.locator('#review-table').selectOption('3');assert.deepEqual(await ids(page,'review-table-images'),sharedFirst);
+    await page.locator('#review-table').selectOption('1');const sharedSecond=await ids(page,'review-table-images');
+    await page.locator('#review-table').selectOption('4');assert.deepEqual(await ids(page,'review-table-images'),sharedSecond);
+    await page.screenshot({path:'/private/tmp/offcut-batch-review-fixture-desktop.png',fullPage:true});
+    await page.locator('#confirm-batch').click();await page.locator('#pending-notice').waitFor({state:'visible'});
+    assert.equal(f.requests.length,0);assert.equal(f.batchRequests.length,1);const body=f.batchRequests[0];
+    assert.deepEqual(body.groups,[{model:'fixture-vision',count:3},{model:'other-vision',count:2}]);
+    assert.equal(body.mode,'compare');assert.equal(body.materials,'random');assert.deepEqual(body.sourceIds,firstDraw);assert.deepEqual(body.materialSelection,originalRecipe);
+    assert.equal(await stored(page,PENDING),null);assert.deepEqual(await stored(page,BATCH_PENDING),body);
+    assert.equal(await page.locator('#run-count').isDisabled(),true);assert.equal(await page.locator('#add-model').isDisabled(),true);
+    await page.reload();await page.locator('#pending-notice').waitFor({state:'visible'});
+    assert.equal(await page.locator('#group-count-1').inputValue(),'2');assert.equal(await page.locator('[name=batch-mode][value=compare]').isChecked(),true);
+    f.catalog.snapshot='9'.repeat(64);await page.reload();await page.locator('#pending-notice').waitFor({state:'visible'});
+    f.post='success';await page.locator('#retry-start').click();await page.waitForURL('**/batch.html?batch=batch-fixture');
+    assert.deepEqual(f.batchRequests[1],body,'batch retry preserves all groups, source recipe and UUID after a catalog change');
+    assert.equal(await stored(page,BATCH_PENDING),null);
+    mark('model groups, Explore and Compare table previews, explicit total budget, isolated durable batch retry');await f.context.close();
+  }
+  {
+    const f=await fixture(),{page}=f;
+    await page.locator('#run-count').fill('2');
+    await page.locator('#random-tray button').first().click();const pin=(await ids(page,'pinned-tray'))[0];
+    assert.equal(await page.locator('#batch-materials').inputValue(),'pinned-random');
+    await page.locator('#launch-run').click();
+    for (const value of ['0','1']) {await page.locator('#review-table').selectOption(value);assert.ok((await ids(page,'review-table-images')).includes(pin));}
+    await page.locator('#close-batch-review').click();await page.locator('#batch-materials').selectOption('random');
+    assert.equal(await page.locator('#launch-run').isDisabled(),true);assert.deepEqual(await ids(page,'pinned-tray'),[pin],'random-only mode does not silently discard pins');
+    await page.locator('#batch-materials').selectOption('same');await page.locator('#launch-run').click();
+    const same=await ids(page,'review-table-images');await page.locator('#next-table').click();assert.deepEqual(await ids(page,'review-table-images'),same);
+    await page.locator('#close-batch-review').click();await page.locator('#batch-materials').selectOption('pinned-random');await setCount(page,0);
+    assert.equal(await page.locator('#launch-run').isDisabled(),true);
+    await page.locator('#batch-materials').selectOption('same');
+    await page.locator('#run-count').fill('51');assert.equal(await page.locator('#launch-run').isDisabled(),true);
+    await page.locator('#run-count').fill('25');await page.locator('#add-model').click();await page.locator('#group-model-1').fill('other-vision');await page.locator('#group-count-1').fill('26');
+    assert.equal(await page.locator('#launch-run').isDisabled(),true);assert.match(await page.locator('#batch-error').textContent(),/50/);
+    await page.locator('#group-count-1').fill('25');assert.equal(await page.locator('#launch-run').isEnabled(),true);
+    await page.locator('.remove-model').click();await page.locator('#run-count').fill('1');
+    assert.equal(await page.locator('#batch-settings').isHidden(),true);assert.match(await page.locator('#launch-run').textContent(),/Start run/);
+    mark('pinned draws, fixed-table repeats, material-mode errors without lost pins, 50-run cap and return to one run');await f.context.close();
+  }
+  {
+    const f=await fixture(),{page}=f;
+    await page.locator('#run-count').fill('2');await page.locator('#launch-run').click();await page.locator('#confirm-batch').click();await page.locator('#pending-notice').waitFor({state:'visible'});
+    const body=f.batchRequests[0];f.batchList=[{id:'recovered-batch',status:'running',launch:{clientRequestId:body.clientRequestId}}];
+    await page.reload();await page.waitForURL('**/batch.html?batch=recovered-batch');
+    assert.equal(f.batchRequests.length,1,'accepted batch recovery does not issue a second start');assert.equal(await stored(page,BATCH_PENDING),null);
+    await page.goto(`${origin}/new.html`);await page.waitForFunction(()=>!document.querySelector('#source-search').disabled);
+    assert.equal(await page.locator('#launch-run').isDisabled(),true);assert.equal(await page.locator('#active-link').getAttribute('href'),'/batch.html?batch=recovered-batch');
+    mark('accepted batch lookup recovers navigation and an active batch blocks another launch');await f.context.close();
+  }
+  {
+    const f=await fixture({mobile:true}),{page}=f;
+    await page.locator('#run-count').fill('2');await page.locator('#add-model').click();await page.locator('#group-model-1').fill('another-vision');
+    await page.locator('[name=batch-mode][value=compare]').check();
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+    await page.screenshot({path:'/private/tmp/offcut-batch-setup-fixture-mobile.png',fullPage:true});
+    await page.locator('#launch-run').click();
+    assert.equal(await page.locator('#batch-review').evaluate(node=>node.scrollWidth>node.clientWidth),false);
+    await page.locator('#next-table').click();assert.match(await page.locator('#review-table-detail').textContent(),/Table 2 of 3/);
+    await page.screenshot({path:'/private/tmp/offcut-batch-review-fixture-mobile.png',fullPage:true});
+    mark('mobile model rows and navigable table review fit without horizontal overflow');await f.context.close();
+  }
+  {
+    for (const isBatch of [false,true]) {
+      const f=await fixture(),{page}=f,key=isBatch?BATCH_PENDING:PENDING;
+      if (isBatch) await page.locator('#run-count').fill('2');
+      await page.locator('#launch-run').click();if(isBatch)await page.locator('#confirm-batch').click();
+      await page.locator('#pending-notice').waitFor({state:'visible'});
+      const receipt=await stored(page,key);
+      f.providerConfigured=false;f.post='missing-key';
+      await page.reload();await page.locator('#pending-notice').waitFor({state:'visible'});
+      assert.equal(await page.locator('#api-key').isDisabled(),true,'an uncertain receipt remains immutable until checked');
+      await page.locator('#retry-start').click();await page.waitForFunction(key=>sessionStorage.getItem(key)===null&&!document.querySelector('#api-key').disabled,key);
+      const requests=isBatch?f.batchRequests:f.requests;
+      assert.deepEqual(requests[1],receipt,'the first check retries the exact uncertain receipt');
+      assert.equal(await stored(page,key),null,'definitive missing-key400 releases the unaccepted receipt');
+      assert.equal(await page.locator('#api-key').isEnabled(),true);assert.equal(await page.locator('#save-key').isEnabled(),true);
+      assert.deepEqual(await selection(page),receipt.sourceIds,'credential recovery preserves the chosen table');
+      await page.locator('#api-key').fill('fixture-key-placeholder');await page.locator('#save-key').click();
+      await page.waitForFunction(()=>document.querySelector('#connection-message').textContent.includes('Access checked'));
+      assert.equal(f.keyRequests.length,1);
+      assert.equal((await page.evaluate(()=>JSON.stringify({...sessionStorage}))).includes('fixture-key-placeholder'),false);
+      f.post='success';await page.locator('#launch-run').click();if(isBatch)await page.locator('#confirm-batch').click();
+      await page.waitForURL(isBatch?'**/batch.html?batch=batch-fixture':'**/?started=run-fixture');
+      assert.notEqual(requests[2].clientRequestId,receipt.clientRequestId,'definitively rejected starts use a new launch receipt');
+      assert.deepEqual({...requests[2],clientRequestId:receipt.clientRequestId},receipt,'reconnection does not reroll or alter budgets');
+      await f.context.close();
+    }
+    mark('lost session key: exact uncertain retry, definitive400 unlock, reconnect and unchanged single/batch setup');
   }
   assert.deepEqual(errors,[],'no uncaught page errors');
   console.log(`\n${checks.length} browser scenarios passed. No paid model calls or server data mutations.`);
