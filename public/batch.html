@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#faf9f6">
+  <title>Batch — Offcut</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cpath fill='%23232522' d='M2 2h17v17H2zm19 0h17v17H21zM2 21h17v17H2zm19 0h17L21 38z'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/batch.css">
+</head>
+<body class="batch-page">
+  <header class="app-header">
+    <a class="brand" href="/" aria-label="Offcut library"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>offcut</a>
+    <nav class="app-nav" aria-label="Main navigation"><a class="nav-link" href="/">Library</a></nav>
+    <div class="header-actions"><a class="primary-button" href="/new.html">New run</a></div>
+  </header>
+  <main class="batch-main">
+    <header class="batch-heading">
+      <div><a class="back-link" href="/">← Library</a><h1 id="batch-identity">Batch</h1><p id="batch-date" class="batch-date"></p></div>
+      <div class="batch-actions"><span id="batch-status" class="batch-status" hidden></span><button id="stop-batch" class="secondary-button" type="button" hidden>Stop batch</button></div>
+    </header>
+    <div id="batch-error" class="batch-error" role="alert" hidden><p id="batch-error-message"></p><button id="retry-batch" class="text-button" type="button">Try again</button></div>
+    <p id="batch-loading" class="batch-loading" role="status">Opening the batch…</p>
+    <div id="batch-content" hidden>
+      <section class="batch-overview" aria-label="Batch plan and progress">
+        <div class="batch-method"><span id="batch-mode" class="batch-mode"></span><span id="batch-materials"></span><span id="batch-pairing" class="batch-pairing" hidden>Matched by run</span></div>
+        <div class="batch-progress-label"><span id="batch-progress-text" role="status"></span><span id="batch-remaining"></span></div>
+        <progress id="batch-progress" max="1" value="0" aria-label="Finished runs"></progress>
+      </section>
+      <p id="batch-notice" class="batch-notice" role="status" hidden></p>
+      <div id="batch-groups" class="batch-groups" aria-label="Planned runs"></div>
+      <footer class="batch-footer"><a id="batch-library" class="text-button" href="/">See these works in the library ↗</a><button id="refresh-batch" class="text-button" type="button">Refresh</button></footer>
+    </div>
+  </main>
+  <script type="module" src="/batch.js"></script>
+</body>
+</html>

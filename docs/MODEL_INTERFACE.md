@@ -62,6 +62,11 @@ Open `/new.html` to configure a run. `lib/runs.mjs` owns isolated states, source
 | `GET /api/runs/:id/render.png?step=N` | Render an accepted-action replay position |
 | `GET /api/runs/:id/project`, `/export` | Export portable project or full run with observation assets |
 | `POST /api/runs/:id/stop` | Abort the in-flight request and stop future turns |
+| `GET /api/batches`, `POST /api/batches` | List batches or freeze and start a reviewed model-group plan |
+| `GET /api/batches/:id`, `/sources/:sourceId` | Inspect batch progress and exact frozen materials |
+| `POST /api/batches/:id/stop` | Stop the active child and leave queued entries unstarted |
+
+Batches add model groups and counts around the same isolated runner. Explore draws independently; Compare models reuses each run number's draw across groups. All planned source bytes are frozen before the first request. A batch runs sequentially, stops on a failed/stopped/interrupted child, and never resumes automatically after restart. Per-run limits remain unchanged. See [the batch contract](BATCHES.md) for recipes, bounds, retry receipts and recovery.
 
 Run input is `{provider:"openai",model,prompt,maxTurns,maxActions,maxPieces,maxOutputTokens,maxMinutes}`. Defaults are 12 turns, 120 accepted actions, 24 fragments, 4096 output tokens per turn and 10 minutes. Caps are 40 turns, 240 actions, 64 fragments, 16384 output tokens and 60 minutes. A fixed 250000-character textual context ceiling stops the run without silently removing prior text. There is no dollar estimate or spending cap yet.
 

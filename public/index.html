@@ -17,12 +17,15 @@
   </header>
   <main class="library-main">
     <div id="page-error" class="page-error" role="alert" hidden><p id="page-error-message"></p><button id="retry-load" class="text-button">Try again</button></div>
+    <section id="active-batches" class="active-batches" aria-labelledby="active-batches-heading" hidden><h2 id="active-batches-heading">Batch in progress</h2><div id="active-batch-list"></div></section>
     <section id="pending-section" class="pending-section" aria-labelledby="pending-heading" hidden><h2 id="pending-heading">In progress</h2><div id="pending-list"></div></section>
     <div class="collection-heading"><h1>Library <span id="run-count">—</span></h1></div>
+    <details id="batch-history" class="batch-history" hidden><summary>Batches <span id="batch-history-count"></span></summary><div id="batch-history-list"></div><button id="show-more-batches" class="text-button" type="button" hidden>Show more batches</button></details>
     <div class="collection-toolbar">
       <label class="collection-search"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m12.5 12.5 4 4"/></svg><input id="run-search" type="search" aria-label="Search by work ID, model, or provider" placeholder="Find a work or model" autocomplete="off"></label>
       <label class="sr-only" for="model-filter">Filter by model</label><select id="model-filter"><option value="">All models</option></select>
       <label class="sr-only" for="status-filter">Filter by outcome</label><select id="status-filter"><option value="all">All outcomes</option><option value="completed">Completed</option><option value="archived">Archived</option><option value="limit_reached">Limit reached</option><option value="stopped">Stopped</option><option value="failed">Failed</option><option value="interrupted">Interrupted</option></select>
+      <label class="sr-only" for="batch-filter">Filter by batch</label><select id="batch-filter" hidden><option value="">All works</option></select>
       <button id="refresh-runs" class="icon-button" aria-label="Refresh library" title="Refresh library"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16.2 7.5A6.5 6.5 0 1 0 16.5 11M16.5 3.5v4.5H12"/></svg></button>
     </div>
     <div id="run-list" class="run-list" aria-label="Saved works"><p class="collection-loading" role="status">Loading works…</p></div>

@@ -29,6 +29,8 @@ The home page is the **Library**. It includes recorded model runs and three arch
 
 The task stays open: create an original collage from the supplied material, choose its subject and composition, and supply a title and short statement. There is no target image or editable creative prompt. The user chooses the model, source material, and limits; the model makes the work.
 
+For a series, set a run count beside the model or **Add another model** with its own count. Choose **Explore** for independent draws or **Compare models** for matching image sets by run number. Keep the same table throughout, draw fresh images, or hold pins fixed while drawing fresh extras. **Review runs** shows each planned set and the total turn allowance before launch. Batches run sequentially; their own page keeps model groups, frozen materials, outcomes and links to playback. Library includes batch history and filtering. [Batch behavior and API](docs/BATCHES.md) covers limits, cancellation and recovery.
+
 | Budget | Fragments | Accepted actions | Model turns | Time limit | Output tokens per turn |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Small | 12 | 60 | 6 | 5 min | 4,096 |
@@ -57,7 +59,7 @@ Runs save under `.data/runs/`. Each has frozen sources and their hashes, a speci
 
 Limits cover model turns, accepted actions, fragments, output tokens per request and elapsed time, plus a fixed textual-context ceiling. Usage is recorded when returned. **Dollar estimates and spending caps are not implemented yet**; a cancelled or failed request may still be billed, and incomplete usage is labeled. Provider network failures stop the run without automatic retries. Retrying an uncertain launch uses the same request identity to avoid creating a second run; it does not repeat model calls within an existing run. Malformed or invalid action batches remain recorded and can be corrected within the remaining turn budget. Restarting the server marks unfinished runs interrupted; it does not automatically resume paid requests.
 
-The first adapter supports OpenAI. Additional providers, repeat queues, richer observation playback, public publishing and measurement computation remain on the roadmap. Tests use simulated providers; a live paid inference run is a separate validation step.
+The first adapter supports OpenAI. Sequential batches and model-group comparisons are implemented; additional providers, richer observation playback, public publishing and measurement computation remain on the roadmap. Tests use simulated providers; a live paid inference run is a separate validation step.
 
 ## Bundled source collection
 
