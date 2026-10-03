@@ -60,7 +60,8 @@ test('two turns send native source/canvas images, freeze inputs, and export exac
   assert.equal(end.costUSD, null);
   assert.equal(factoryCalls(), 1);
   assert.equal(end.spec.prompt, spec.prompt);
-  assert.equal(end.policy.version, 2);
+  assert.equal(end.policy.version, 3);
+  assert.equal(end.policy.protocol, 'offcut-actions-v3');
   assert.equal(end.policy.completion.requiresObservedCanvas, true);
   assert.equal(end.state.rules.maxVertices, 64);
   assert.equal(end.sourceManifest[0].name, before.name);
@@ -228,6 +229,27 @@ test('restart reconstructs committed batches from events and repairs a stale pro
   assert.equal(JSON.parse(await readFile(join(runDir, 'project.json'), 'utf8')).cursor, 3);
 });
 
+test('recovery preserves a saved earlier policy instead of relabeling it as trim-capable', async t => {
+  const { manager, source, dataDir, providerFactory } = await setup(t, async request =>
+    output(JSON.parse(request.messages.at(-1).text).turn === 1 ? [cut, place] : [], true));
+  const run = await manager.start({ spec, sources: [source] });
+  await finished(manager, run.id);
+  await manager.close();
+  const runDir = join(dataDir, run.id);
+  const saved = JSON.parse(await readFile(join(runDir, 'run.json'), 'utf8'));
+  const priorPolicy = { ...saved.policy, version: 2, protocol: 'offcut-actions-v2' };
+  saved.policy = priorPolicy;
+  await writeFile(join(runDir, 'run.json'), JSON.stringify(saved));
+  const events = manager.events(run.id);
+  events.find(event => event.type === 'run_started').policy = priorPolicy;
+  await writeFile(join(runDir, 'events.jsonl'), events.map(event => JSON.stringify(event) + '\n').join(''));
+  const restarted = await createRunManager({ dataDir, providerFactory });
+  t.after(() => restarted.close());
+  assert.deepEqual(restarted.get(run.id).policy, priorPolicy);
+  assert.deepEqual(restarted.events(run.id).find(event => event.type === 'run_started').policy, priorPolicy);
+  assert.deepEqual(restarted.state(run.id), manager.state(run.id));
+});
+
 test('a finish request with visual edits stays running until the rendered result is reviewed', async t => {
   const enteredReview = deferred(), confirm = deferred();
   const requests = [];
@@ -277,6 +299,104 @@ test('revisions during a final look require the revised canvas to be observed ag
   const events = manager.events(run.id);
   assert.deepEqual(events.filter(event => event.type === 'batch_result').map(event => event.completionDeferred), [true, true, false]);
   assert.equal(events.find(event => event.type === 'final_review').observedStep, 3);
+});
+
+test('trim observations expose reusable offcuts and holes, with final review, export and recovery', async t => {
+  const requests = [];
+  const trim = { type: 'trim', pieceId: 'leaf', newPieceId: 'leaf-refined', polygon: [[10, 10], [30, 10], [30, 30], [10, 30]] };
+  let placeOffcut;
+  const { manager, source, dataDir, providerFactory } = await setup(t, async request => {
+    requests.push(request);
+    if (requests.length === 1) return output([cut, place]);
+    if (requests.length === 2) return output([trim], true);
+    if (requests.length === 3) {
+      const observed = JSON.parse(request.messages.at(-1).text);
+      const parent = observed.state.pieces.find(piece => piece.id === 'leaf');
+      const retained = observed.state.pieces.find(piece => piece.id === trim.newPieceId);
+      const offcut = observed.state.pieces.find(piece => piece.parentPieceId === 'leaf' && piece.trimRole === 'offcut');
+      assert.equal(parent.visible, false);
+      assert.equal(parent.supersededBy, retained.id);
+      assert.deepEqual(new Set(parent.childPieceIds), new Set([retained.id, offcut.id]));
+      assert.equal(retained.parentPieceId, parent.id);
+      assert.equal(retained.trimRole, 'retained');
+      assert.equal(retained.visible, true);
+      assert.match(offcut.id, /^piece-\d+$/);
+      assert.equal(offcut.visible, false);
+      assert.equal(offcut.holes.length, 1, 'cutting out the center leaves a reusable ring');
+      assert.equal(observed.state.pieces.filter(piece => !piece.supersededBy).length, 2);
+      assert.equal(observed.state.rules.maxPieces, 2, 'retired history does not consume usable capacity');
+      assert.equal(observed.actionsRemaining, 117);
+      placeOffcut = { type: 'place', pieceId: offcut.id, x: 600, y: 600 };
+      return output([placeOffcut], true, 'Place the saved offcut beside the retained square.');
+    }
+    return output([describe], true);
+  });
+  const run = await manager.start({ spec: { ...spec, maxPieces: 2 }, sources: [source] });
+  const end = await finished(manager, run.id);
+  assert.equal(end.status, 'completed');
+  assert.equal(end.turns, 4);
+  assert.equal(end.acceptedActions, 5);
+  assert.equal(end.rejectedBatches, 0);
+  assert.match(requests[0].instructions, /"type":"trim","pieceId":"existing-id","newPieceId":"new-unique-id"/);
+  assert.match(requests[0].instructions, /Every connected offcut also becomes a usable child/);
+  assert.match(requests[0].instructions, /retired parents do not count/);
+  assert.match(requests[0].instructions, /Holes cannot be filled by a later trim/);
+  assert.match(requests[0].instructions, /8192 boundary vertices/);
+  const trimmedMessage = requests[2].messages.at(-1);
+  assert.deepEqual(Buffer.from(trimmedMessage.images.at(-1).dataUrl.split(',')[1], 'base64'), await renderPNG(manager.state(run.id, { step: 3 })));
+  const finalMessage = requests[3].messages.at(-1);
+  const observedOffcut = JSON.parse(finalMessage.text).state.pieces.find(piece => piece.id === placeOffcut.pieceId);
+  assert.equal(observedOffcut.visible, true);
+  assert.equal(observedOffcut.holes.length, 1);
+  const expected = manager.state(run.id);
+  const expectedPNG = await renderPNG(expected);
+  assert.deepEqual(Buffer.from(finalMessage.images.at(-1).dataUrl.split(',')[1], 'base64'), expectedPNG);
+  assert.notEqual(requests[1].messages.at(-1).images.at(-1).dataUrl, trimmedMessage.images.at(-1).dataUrl);
+  assert.notEqual(trimmedMessage.images.at(-1).dataUrl, finalMessage.images.at(-1).dataUrl);
+  const { data, info } = await getSharp()(expectedPNG).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+  const pixel = (x, y) => [...data.subarray((y * info.width + x) * 3, (y * info.width + x) * 3 + 3)];
+  assert.deepEqual(pixel(600, 600), [246, 241, 231], 'the placed offcut retains its empty center');
+  assert.deepEqual(pixel(630, 600), [51, 153, 102], 'offcut material remains available for placement');
+  assert.deepEqual(pixel(300, 400), [51, 153, 102], 'the retained center stays in its original pose');
+  const events = manager.events(run.id);
+  assert.equal(events.find(event => event.type === 'batch_result' && event.turn === 2).completionDeferred, true);
+  assert.equal(events.find(event => event.type === 'batch_result' && event.turn === 3).completionDeferred, true);
+  assert.equal(events.find(event => event.type === 'final_review').observedStep, 4);
+  const bundle = await manager.bundle(run.id);
+  assert.deepEqual(bundle.project.actions.map(record => record.action), [cut, place, trim, placeOffcut, describe]);
+  const savedObservation = JSON.parse(bundle.events.find(event => event.type === 'request' && event.turn === 3).request.messages.at(-1).text);
+  assert.deepEqual(savedObservation.state.pieces, JSON.parse(trimmedMessage.text).state.pieces);
+  assert.deepEqual(manager.project(run.id).actions.map(record => record.action), [cut, place, trim, placeOffcut, describe]);
+  assert.equal(manager.state(run.id, { step: 2 }).pieces[0].supersededBy, undefined);
+  await manager.close();
+  await writeFile(join(dataDir, run.id, 'project.json'), await readFile(join(dataDir, run.id, 'initial.project.json')));
+  const restarted = await createRunManager({ dataDir, providerFactory });
+  t.after(() => restarted.close());
+  assert.deepEqual(restarted.state(run.id), expected);
+  assert.deepEqual(await renderPNG(restarted.state(run.id)), expectedPNG);
+  assert.equal(restarted.get(run.id).policy.version, 3);
+  assert.equal(restarted.events(run.id).filter(event => event.type === 'final_review').length, 1);
+});
+
+test('a batch that trims then tries to restore the parent leaves no partial child', async t => {
+  let calls = 0;
+  const trim = { type: 'trim', pieceId: 'leaf', newPieceId: 'child', polygon: [[10, 0], [40, 0], [40, 40], [10, 40]] };
+  const { manager, source } = await setup(t, async request => {
+    if (++calls === 1) return output([cut, place]);
+    if (calls === 2) return output([trim, place]);
+    const observed = JSON.parse(request.messages.at(-1).text);
+    assert.equal(observed.state.pieces.length, 1);
+    assert.equal(observed.state.pieces[0].visible, true);
+    assert.equal(observed.state.pieces[0].supersededBy, undefined);
+    assert.equal(observed.actionsRemaining, 118);
+    return output([], true);
+  });
+  const run = await manager.start({ spec, sources: [source] });
+  const end = await finished(manager, run.id);
+  assert.equal(end.status, 'completed');
+  assert.equal(end.rejectedBatches, 1);
+  assert.equal(end.acceptedActions, 2);
+  assert.equal(manager.events(run.id).find(event => event.type === 'batch_result' && !event.accepted).code, 'PIECE_RETIRED');
 });
 
 test('last-turn edits are preserved as partial work and never reported as reviewed completion', async t => {

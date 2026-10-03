@@ -1,4 +1,4 @@
-import { createState, applyAction, polygonBounds, polygonArea } from '/engine.mjs';
+import { createState, applyAction, polygonBounds, pieceRings, pieceArea, usablePieceCount } from '/engine.mjs';
 import { createPieceHighlight, outlineForAction } from '/work-highlight.mjs';
 
 const $ = id => document.getElementById(id);
@@ -34,6 +34,12 @@ function svgNode(tag, attributes={}) { const item = document.createElementNS(SVG
 function fact(list,label,value) { if (value === undefined || value === null || value === '') return; const dd = node('dd'); dd.append(value instanceof Node ? value : String(value)); list.append(node('dt','',label),dd); }
 function sourceName(id) { return state.project?.sources.find(source => source.id === id)?.name || 'Source image'; }
 function fragmentName(id) { const fragment = state.fragments.find(item => item.piece.id === id); return fragment ? `Fragment ${String(fragment.ordinal).padStart(2,'0')}` : 'Fragment'; }
+function childIds(piece) { return piece?.childPieceIds || (piece?.supersededBy ? [piece.supersededBy] : []); }
+function fragmentOrigin(piece,compact=false) {
+  if (!piece.parentPieceId) return sourceName(piece.sourceId);
+  const parent = fragmentName(piece.parentPieceId);
+  return piece.trimRole === 'offcut' ? compact ? `Offcut · ${parent.replace(/^Fragment /,'')}` : `Offcut from ${parent}` : `From ${parent}`;
+}
 function safeSourceLink(value) { try { const url = new URL(value); if (!['https:','http:'].includes(url.protocol)) return null; const link = node('a','',url.hostname); link.href = url.href; link.target = '_blank'; link.rel = 'noopener noreferrer'; return link; } catch { return null; } }
 async function request(path,{method='GET',body}={}) {
   const controller = new AbortController();
@@ -81,9 +87,11 @@ function makeFrames(project) {
     // Images are immutable; every replay state can share the saved source inventory.
     next.sources = frames[0].sources;
     frames.push(next);
-    if (record.action.type === 'cut') {
-      const piece = next.pieces.find(item => !previous.pieces.some(existing => existing.id === item.id));
-      fragments.push({piece,cutStep:index + 1,ordinal:fragments.length + 1});
+    if (['cut','trim'].includes(record.action.type)) {
+      const existingIds = new Set(previous.pieces.map(piece => piece.id));
+      for (const piece of next.pieces.filter(item => !existingIds.has(item.id))) {
+        fragments.push({piece,cutStep:index + 1,ordinal:fragments.length + 1});
+      }
     }
   }
   state.frames = frames;
@@ -96,15 +104,17 @@ function fragmentSVG(piece, source, {trace=false}={}) {
   const defs = svgNode('defs');
   const clip = svgNode('clipPath',{id:clipId,clipPathUnits:'userSpaceOnUse'});
   const points = piece.polygon.map(point => point.join(',')).join(' ');
-  clip.append(svgNode('polygon',{points})); defs.append(clip); root.append(defs);
+  const geometry = piece.holes?.length ? {tag:'path',attributes:{d:pieceRings(piece).map(ring => `M${ring.map(point => point.join(',')).join('L')}Z`).join(''),'fill-rule':'evenodd','clip-rule':'evenodd'}} : {tag:'polygon',attributes:{points}};
+  clip.append(svgNode(geometry.tag,geometry.attributes)); defs.append(clip); root.append(defs);
   if (trace) root.append(svgNode('image',{href:source.dataUrl,width:source.width,height:source.height,opacity:'.32'}));
   root.append(svgNode('image',{href:source.dataUrl,width:source.width,height:source.height,'clip-path':`url(#${clipId})`}));
-  if (trace) root.append(svgNode('polygon',{points,fill:'none',stroke:'#d34d32','stroke-width':2,'vector-effect':'non-scaling-stroke'}));
+  if (trace) root.append(svgNode(geometry.tag,{...geometry.attributes,fill:'none',stroke:'#d34d32','stroke-width':2,'vector-effect':'non-scaling-stroke'}));
   return root;
 }
 function fragmentStatus(fragment,frame=state.frames[state.step]) {
   const piece = frame.pieces.find(item => item.id === fragment.piece.id);
   if (!piece) return 'Not cut yet';
+  if (piece.supersededBy) return childIds(piece).length > 1 ? `Cut into ${childIds(piece).length} fragments` : `Recut as ${fragmentName(piece.supersededBy)}`;
   if (piece.visible) return 'Placed';
   const lastPlacement = state.project.actions.slice(0,state.step).findLast(record => record.action.pieceId === piece.id && ['place','remove'].includes(record.action.type));
   return lastPlacement?.action.type === 'remove' ? 'Removed from canvas' : 'Unplaced';
@@ -140,11 +150,14 @@ function renderMaterials() {
 function updateFragmentStates() {
   for (const card of $('fragment-grid').children) {
     const fragment = state.fragments.find(item => item.piece.id === card.dataset.fragmentId);
+    const piece = state.frames[state.step].pieces.find(item => item.id === fragment.piece.id);
     const status = fragmentStatus(fragment);
     card.classList.toggle('is-future',status === 'Not cut yet');
-    card.classList.toggle('is-unplaced',status !== 'Not cut yet' && status !== 'Placed');
-    card.title = `${fragmentName(fragment.piece.id)} · ${status}`;
-    card.setAttribute('aria-label',`${fragmentName(fragment.piece.id)}, ${sourceName(fragment.piece.sourceId)}, ${status}`);
+    card.classList.toggle('is-retired',Boolean(piece?.supersededBy));
+    card.classList.toggle('is-unplaced',status !== 'Not cut yet' && status !== 'Placed' && !piece?.supersededBy);
+    card.querySelector('.fragment-source').textContent = piece?.supersededBy ? status : fragmentOrigin(fragment.piece,true);
+    card.title = [fragmentName(fragment.piece.id),fragment.piece.parentPieceId ? fragmentOrigin(fragment.piece) : '',status].filter(Boolean).join(' · ');
+    card.setAttribute('aria-label',[fragmentName(fragment.piece.id),sourceName(fragment.piece.sourceId),fragment.piece.parentPieceId ? fragmentOrigin(fragment.piece) : '',status].filter(Boolean).join(', '));
   }
 }
 function writingField(label,text,className) { const field = node('div','model-field'); field.append(node('span','model-field-label',label),node('p',className,text)); return field; }
@@ -166,7 +179,7 @@ function renderFacts() {
   fact(facts,'Provider',providerName(run));
   fact(facts,'Started',new Date(run.createdAt).toLocaleString());
   fact(facts,'Actions',budget(state.frames.length - 1,run.spec?.maxActions));
-  fact(facts,'Fragments',budget(state.fragments.length,run.spec?.maxPieces));
+  fact(facts,'Usable fragments',budget(usablePieceCount(state.frames.at(-1)),run.spec?.maxPieces));
   if (run.turns !== undefined && run.turns !== null) fact(facts,'Turns',budget(run.turns,run.spec?.maxTurns));
   if (Number.isFinite(run.spec?.maxMinutes)) fact(facts,'Time limit',`${number(run.spec.maxMinutes)} min`);
   if (Number.isFinite(run.spec?.maxOutputTokens)) fact(facts,'Output limit / turn',`${number(run.spec.maxOutputTokens)} tokens`);
@@ -202,6 +215,12 @@ function actionCaption(step) {
   const action = state.project.actions[step - 1].action;
   const seed = step <= (state.run.startingActions || 0) ? 'Seed · ' : '';
   if (action.type === 'cut') { const fragment = state.fragments.find(item => item.cutStep === step); return `${seed}Cut · ${fragmentName(fragment?.piece.id)} · ${sourceName(action.sourceId)}`; }
+  if (action.type === 'trim') {
+    const results = state.fragments.filter(item => item.cutStep === step);
+    const offcuts = results.filter(item => item.piece.trimRole === 'offcut').length;
+    const retained = results.length - offcuts;
+    return `${seed}Recut · ${fragmentName(action.pieceId)} → ${retained > 1 ? `${retained} fragments` : fragmentName(action.newPieceId)}${offcuts ? ` + ${offcuts} ${offcuts === 1 ? 'offcut' : 'offcuts'}` : ''}`;
+  }
   if (action.type === 'describe') return seed ? 'Seed text updated' : 'Model-authored text updated';
   return `${seed}${{place:'Place',transform:'Move / transform',reorder:'Change layer',remove:'Remove'}[action.type] || 'Action'} · ${fragmentName(action.pieceId)}`;
 }
@@ -283,7 +302,7 @@ async function advancePlayback(version) {
 function openMaterial(source,fragment,opener) {
   stopPlayback();
   state.dialogOpener = opener;
-  $('material-kicker').textContent = fragment ? 'Cut from the saved original' : 'Saved original';
+  $('material-kicker').textContent = fragment ? fragment.piece.parentPieceId ? `${fragment.piece.trimRole === 'offcut' ? 'Offcut' : 'Recut'} from ${fragmentName(fragment.piece.parentPieceId)}` : 'Cut from the saved original' : 'Saved original';
   $('material-title').textContent = fragment ? fragmentName(fragment.piece.id) : source.name;
   $('material-origin').replaceChildren();
   $('material-fragment').replaceChildren();
@@ -294,11 +313,28 @@ function openMaterial(source,fragment,opener) {
     $('material-origin').append(trace);
     $('material-fragment').append(fragmentSVG(fragment.piece,source));
     fact(facts,'Source',source.name);
+    const relativeLink = (id,label) => {
+      const relative = state.fragments.find(item => item.piece.id === id);
+      const button = node('button','text-button material-lineage',label); button.type = 'button';
+      button.addEventListener('click',() => openMaterial(source,relative,opener));
+      return button;
+    };
+    if (fragment.piece.parentPieceId) fact(facts,'Cut from',relativeLink(fragment.piece.parentPieceId,fragmentName(fragment.piece.parentPieceId)));
     fact(facts,'Cut at',`Action ${fragment.cutStep}${fragment.cutStep <= (state.run.startingActions || 0) ? ' · Seed' : ''}`);
-    fact(facts,'Status',fragmentStatus(fragment));
+    const piece = state.frames[state.step].pieces.find(item => item.id === fragment.piece.id);
+    const status = fragmentStatus(fragment);
+    fact(facts,'Status',status);
+    if (piece?.supersededBy) {
+      const children = node('span','material-descendants');
+      for (const id of childIds(piece)) {
+        const child = state.fragments.find(item => item.piece.id === id);
+        children.append(relativeLink(id,`${fragmentName(id)}${child?.piece.trimRole === 'offcut' ? ' · Offcut' : ''}`));
+      }
+      fact(facts,'Cut into',children);
+    }
     const bounds = polygonBounds(fragment.piece.polygon);
     fact(facts,'Cut size',`${number(Math.round(bounds.width))} × ${number(Math.round(bounds.height))} px`);
-    fact(facts,'Area',`${number(Math.round(polygonArea(fragment.piece.polygon)))} px²`);
+    fact(facts,'Area',`${number(Math.round(pieceArea(fragment.piece)))} px²`);
   } else {
     const image = node('img'); image.src = source.dataUrl; image.alt = source.name; $('material-origin').append(image);
     fact(facts,'Size',`${number(source.width)} × ${number(source.height)} px`);
@@ -308,7 +344,7 @@ function openMaterial(source,fragment,opener) {
   fact(facts,'License',source.license);
   if (source.url) fact(facts,'Original',safeSourceLink(source.url));
   $('material-facts').replaceChildren(facts);
-  $('material-dialog').showModal();
+  if (!$('material-dialog').open) $('material-dialog').showModal();
   $('close-material').focus({preventScroll:true});
 }
 function setTab(selected) {

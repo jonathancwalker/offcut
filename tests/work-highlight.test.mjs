@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { applyAction, createState } from '../lib/engine.mjs';
 import { getSharp, renderPNG } from '../lib/render.mjs';
-import { imageContentRect, outlineForAction, placedPolygon } from '../public/work-highlight.mjs';
+import { imageContentRect, outlineForAction, placedPolygon, placedRings } from '../public/work-highlight.mjs';
 
 const rectangle = (x, y, width, height) => [[x, y], [x + width, y], [x + width, y + height], [x, y + height]];
 const piece = (id = 'target', overrides = {}) => ({
@@ -111,6 +111,58 @@ test('occluders are exactly the visible pieces above the target in the resulting
     { pieceId: 'near', polygon: [[65, 55], [85, 55], [85, 65], [65, 65]] },
     { pieceId: 'distant', polygon: [[890, 55], [910, 55], [910, 65], [890, 65]] },
   ]);
+});
+
+test('trim outlines the retained child, with the retired parent absent from its mask', () => {
+  const parent = piece('parent', { rotation: 90, scale: 2 });
+  const cover = piece('cover');
+  const child = piece('child', {
+    parentPieceId: 'parent', polygon: rectangle(20, 30, 10, 10),
+    bounds: { x: 20, y: 30, width: 10, height: 10 },
+    x: 50, y: 50, rotation: 90, scale: 2,
+  });
+  const previous = frame(parent, cover);
+  const current = frame({ ...parent, visible: false, supersededBy: 'child' }, child, cover);
+  const action = { type: 'trim', pieceId: 'parent', newPieceId: 'child', polygon: child.polygon };
+  const outline = outlineForAction(previous, current, action);
+  assert.equal(outline.pieceId, 'child');
+  polygonClose(outline.polygon, [[60, 40], [60, 60], [40, 60], [40, 40]]);
+  assert.deepEqual(outline.occluders.map(item => item.pieceId), ['cover']);
+  assert.equal(outlineForAction(previous, current, { ...action, newPieceId: 'missing' }), null);
+  assert.equal(outlineForAction(previous, frame(current.pieces[0], { ...child, visible: false }, cover), action), null,
+    'a trim made in the tray has no canvas outline');
+});
+
+test('hole boundaries use the same placement as the outer ring and stay holes in occluders', () => {
+  const ring = piece('ring', { holes:[rectangle(25,32,10,6)], rotation:90, scale:2 });
+  const rings = placedRings(ring);
+  assert.equal(rings.length,2);
+  polygonClose(rings[0],[[60,40],[60,80],[40,80],[40,40]]);
+  polygonClose(rings[1],[[56,50],[56,70],[44,70],[44,50]]);
+  const before = deepFreeze(frame(piece('target',{visible:false}),ring));
+  const after = deepFreeze(frame(piece('target'),ring));
+  const result = outlineForAction(before,after,{type:'place',pieceId:'target'});
+  assert.equal(result.occluders.length,1);
+  polygonClose(result.occluders[0].holes[0],rings[1]);
+  result.occluders[0].holes[0][0][0] = -999;
+  assert.equal(ring.holes[0][0][0],25,'transformed holes do not alias saved source geometry');
+  const outline = outlineForAction(frame({...ring,visible:false}),frame(ring),{type:'place',pieceId:'ring'});
+  polygonClose(outline.holes[0],rings[1]);
+});
+
+test('a trim marks every visible retained component and excludes unplaced offcuts', () => {
+  const parent = piece('parent');
+  const primary = piece('primary',{parentPieceId:'parent',trimRole:'retained'});
+  const secondary = piece('secondary',{parentPieceId:'parent',trimRole:'retained',x:90});
+  const offcut = piece('offcut',{parentPieceId:'parent',trimRole:'offcut',visible:false});
+  const cover = piece('cover',{holes:[rectangle(25,32,10,6)]});
+  const previous = frame(parent,cover);
+  const current = frame({...parent,visible:false,supersededBy:'primary',childPieceIds:['primary','secondary','offcut']},primary,secondary,offcut,cover);
+  const result = outlineForAction(previous,current,{type:'trim',pieceId:'parent',newPieceId:'primary'});
+  assert.equal(result.pieceId,'primary');
+  assert.deepEqual(result.additional.map(item=>item.pieceId),['secondary']);
+  assert.deepEqual(result.additional[0].occluders.map(item=>item.pieceId),['cover']);
+  assert.equal(result.additional[0].occluders[0].holes.length,1);
 });
 
 test('missing targets, hidden fragments, and nonvisual actions do not produce an outline', () => {

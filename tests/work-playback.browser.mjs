@@ -7,8 +7,8 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import { createState, applyAction } from '../lib/engine.mjs';
-import { getSharp } from '../lib/render.mjs';
+import { createState, applyAction, usablePieceCount } from '../lib/engine.mjs';
+import { getSharp, renderPNG } from '../lib/render.mjs';
 
 const require = createRequire(import.meta.url);
 let playwright;
@@ -50,7 +50,7 @@ const waitFrame = step => page.waitForFunction(value => {
   return image.naturalWidth > 0 && new URL(image.src).searchParams.get('step') === String(value) && document.querySelector('#work-stage').getAttribute('aria-busy') === 'false';
 }, step);
 async function seek(step) { await dispatchStep(step); await waitFrame(step); }
-const outlineInfo = () => page.locator('#work-change-outline').evaluate(element => ({ hidden: element.hasAttribute('hidden'), step: element.dataset.step, pieceId: element.dataset.pieceId, points: element.querySelector('.changed-piece-boundary')?.getAttribute('points').split(' ').map(point => point.split(',').map(Number)), occluders: [...element.querySelectorAll('[data-occluder]')].map(item => item.dataset.occluder), animations: element.getAnimations().length, stroke: element.querySelector('.changed-piece-boundary') && getComputedStyle(element.querySelector('.changed-piece-boundary')).strokeWidth }));
+const outlineInfo = () => page.locator('#work-change-outline').evaluate(element => ({ hidden: element.hasAttribute('hidden'), step: element.dataset.step, pieceId: element.dataset.pieceId, points: element.querySelector('.changed-piece-boundary')?.getAttribute('points')?.split(' ').map(point => point.split(',').map(Number)), occluders: [...element.querySelectorAll('[data-occluder]')].map(item => item.dataset.occluder), animations: element.getAnimations().length, stroke: element.querySelector('.changed-piece-boundary') && getComputedStyle(element.querySelector('.changed-piece-boundary')).strokeWidth }));
 async function expectOutline(step) {
   const info = await outlineInfo();
   const action = project.actions[step - 1].action;
@@ -85,6 +85,155 @@ async function expectAligned() {
 async function screenshot(name) { await page.screenshot({ path: new URL(name, output).pathname, fullPage: true }); }
 async function stagePixels() { return digest(await page.locator('#work-canvas').screenshot({ animations: 'allow' })); }
 async function mark(check) { checks.push(check); console.log(`PASS ${check}`); }
+async function checkTrimPlayback() {
+  // Synthetic saved runs are served through browser routes only; the actual
+  // engine, renderer and viewer run without changing data or calling a model.
+  const source = async (id,name,color) => ({id,name,width:200,height:200,dataUrl:`data:image/png;base64,${(await getSharp()({create:{width:200,height:200,channels:3,background:color}}).png().toBuffer()).toString('base64')}`});
+  const sources = [await source('paper','Terracotta paper','#a85543'),await source('green','Green paper','#506d5b')];
+  const rect = (x,y,w,h) => [[x,y],[x+w,y],[x+w,y+h],[x,y+h]];
+  const actions = [], trimFrames = [createState({id:'trim-fixture',sources,canvas:{width:440,height:300,background:'#f6f1e7'}})];
+  const append = action => { actions.push(action); trimFrames.push(applyAction(trimFrames.at(-1),action)); return actions.length; };
+  const children = (step,parent) => trimFrames[step].pieces.filter(piece=>piece.parentPieceId===parent);
+  append({type:'cut',sourceId:'paper',pieceId:'parent',polygon:rect(20,20,160,160)});
+  append({type:'place',pieceId:'parent',x:115,y:150,rotation:-17,scale:1.1});
+  const firstTrim = append({type:'trim',pieceId:'parent',newPieceId:'center',polygon:rect(60,60,80,80)});
+  const ringId = children(firstTrim,'parent').find(piece=>piece.trimRole==='offcut').id;
+  append({type:'cut',sourceId:'green',pieceId:'underlay',polygon:rect(20,20,40,160)});
+  append({type:'place',pieceId:'underlay',x:260,y:140});
+  const ringPlaced = append({type:'place',pieceId:ringId,x:260,y:140,rotation:0,scale:1});
+  append({type:'reorder',pieceId:ringId,index:trimFrames.at(-1).pieces.length-1});
+  append({type:'cut',sourceId:'green',pieceId:'blocker',polygon:rect(100,20,30,30)});
+  append({type:'place',pieceId:'blocker',x:247,y:140});
+  const maskedUnderlay = append({type:'transform',pieceId:'underlay',x:265});
+  const splitRing = append({type:'trim',pieceId:ringId,newPieceId:'ring-strip',polygon:rect(20,80,160,40)});
+  assert.equal(children(splitRing,ringId).filter(piece=>piece.trimRole==='retained').length,2);
+  assert.equal(children(splitRing,ringId).filter(piece=>piece.trimRole==='offcut').length,2);
+  const detailTrim = append({type:'trim',pieceId:'center',newPieceId:'detail',polygon:rect(80,80,40,40)});
+  const trayRingId = children(detailTrim,'center').find(piece=>piece.trimRole==='offcut').id;
+  append({type:'cut',sourceId:'green',pieceId:'tray-parent',polygon:rect(100,80,80,80)});
+  const hiddenTrim = append({type:'trim',pieceId:'tray-parent',newPieceId:'tray-child',polygon:rect(120,100,40,40)});
+  append({type:'describe',title:'A cut keeps every piece'});
+  const lastFrame = trimFrames.at(-1);
+  const fixture = {id:'trim-fixture',sources,canvas:trimFrames[0].canvas,rules:trimFrames[0].rules,cursor:actions.length,actions:actions.map((action,index)=>({index:index+1,action}))};
+  const run = {id:'run-trim-fixture',status:'completed',spec:{model:'Fixture',maxPieces:24,maxActions:120},createdAt:'2026-01-01T12:00:00Z',revision:'trim-fixture',startingActions:0};
+  const fixtureRoute = async route => {
+    const url = new URL(route.request().url());
+    if (url.pathname.endsWith('/render.png')) {
+      const step = url.searchParams.has('step') ? Number(url.searchParams.get('step')) : actions.length;
+      return route.fulfill({status:200,contentType:'image/png',body:await renderPNG(trimFrames[step])});
+    }
+    return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(url.pathname.endsWith('/project') ? fixture : {run})});
+  };
+  // Render an actual DOM SVG in Chromium, retaining clips/masks but making its
+  // pixel coordinate system explicit. Samples include alpha through holes.
+  const svgPixels = async (selector,width,height,samples,outline=false) => page.locator(selector).evaluate(async (element,{width,height,samples,outline}) => {
+    const svg = element.cloneNode(true);
+    svg.setAttribute('width',width); svg.setAttribute('height',height);
+    svg.removeAttribute('hidden'); svg.removeAttribute('style');
+    if (outline) for (const boundary of svg.querySelectorAll('.changed-piece-boundary')) {
+      boundary.setAttribute('fill','none'); boundary.setAttribute('stroke','#ff0000'); boundary.setAttribute('stroke-width','2');
+    }
+    const image = new Image(); image.src=`data:image/svg+xml;charset=utf-8,${encodeURIComponent(new XMLSerializer().serializeToString(svg))}`;
+    await image.decode();
+    const canvas = document.createElement('canvas'); canvas.width=width; canvas.height=height;
+    const context = canvas.getContext('2d'); context.drawImage(image,0,0,width,height);
+    return samples.map(([x,y])=>[...context.getImageData(x,y,1,1).data]);
+  },{width,height,samples,outline});
+  await page.route('**/api/runs/run-trim-fixture{,/**}',fixtureRoute);
+  await page.goto(`${origin}/work.html?run=run-trim-fixture`);
+  await waitFrame(actions.length);
+  assert.equal(Number(await page.locator('#fragment-count').textContent()),lastFrame.pieces.length);
+  assert.deepEqual((await page.locator('[data-fragment-id]').evaluateAll(cards=>cards.map(card=>card.dataset.fragmentId))).sort(),lastFrame.pieces.map(piece=>piece.id).sort());
+  const card = id => page.locator(`[data-fragment-id="${id}"]`);
+  const label = async id => card(id).locator('.fragment-label').textContent();
+  const centerLabel = await label('center'), detailLabel = await label('detail');
+  assert.equal(await card('parent').locator('.fragment-source').textContent(),'Cut into 2 fragments');
+  assert.equal(await card(trayRingId).locator('.fragment-source').textContent(),`Offcut · ${centerLabel.replace(/^Fragment /,'')}`);
+  await card(trayRingId).click();
+  assert.equal(await page.locator('#material-kicker').textContent(),`Offcut from ${centerLabel}`);
+  const [hole,material] = await svgPixels('#material-fragment svg',200,200,[[100,100],[10,10]]);
+  assert.equal(hole[3],0,'offcut preview center is empty, not a bounding-box crop');
+  assert.equal(material[3],255);
+  const [sourceHole,sourceMaterial] = await svgPixels('#material-origin svg',200,200,[[100,100],[70,70]]);
+  assert.ok(sourceHole[3]>70&&sourceHole[3]<95,'source trace shows the original faintly through its hole');
+  assert.equal(sourceMaterial[3],255);
+  assert.match(await page.locator('#material-facts').textContent(),/4,800 px²/);
+  await screenshot('trim-offcut-hole-lineage.png');
+  await page.locator('#material-facts').getByRole('button',{name:centerLabel,exact:true}).click();
+  assert.equal(await page.locator('#material-title').textContent(),centerLabel);
+  assert.equal(await page.locator('.material-descendants button').count(),2);
+  await page.locator('.material-descendants').getByRole('button',{name:detailLabel,exact:true}).click();
+  assert.equal(await page.locator('#material-title').textContent(),detailLabel);
+  await page.locator('#close-material').click();
+  assert.equal(await card(trayRingId).evaluate(element=>document.activeElement===element),true);
+  await seek(2);
+  assert.doesNotMatch(await card('parent').getAttribute('class'),/is-retired/);
+  assert.match(await card(ringId).getAttribute('class'),/is-future/);
+  await seek(firstTrim);
+  assert.equal((await outlineInfo()).pieceId,'center');
+  assert.match(await page.locator('#action-caption').textContent(),/\+ 1 offcut$/);
+  assert.match(await card(ringId).getAttribute('class'),/is-unplaced/);
+  await seek(ringPlaced);
+  assert.equal(await page.locator('.changed-piece-boundary').evaluate(element=>element.tagName),'path');
+  const [outerStroke,innerStroke,emptyCenter] = await svgPixels('#work-change-outline',440,300,[[180,100],[220,120],[260,140]],true);
+  assert.ok(outerStroke[3]>200&&innerStroke[3]>200,'both outer and hole boundaries are outlined');
+  assert.equal(emptyCenter[3],0);
+  await seek(maskedUnderlay);
+  const [throughHole,behindPaper,behindBlocker] = await svgPixels('#work-change-outline',440,300,[[245,115],[245,80],[245,140]],true);
+  assert.ok(throughHole[3]>200,'lower outline remains visible through the foreground hole');
+  assert.equal(behindPaper[3],0,'foreground material masks the lower outline');
+  assert.equal(behindBlocker[3],0,'a hole must not erase another fragment’s mask');
+  await screenshot('trim-holey-occluder.png');
+  await seek(splitRing);
+  assert.deepEqual((await page.locator('.changed-piece-boundary').evaluateAll(elements=>elements.map(element=>element.dataset.pieceId))).sort(),children(splitRing,ringId).filter(piece=>piece.visible).map(piece=>piece.id).sort());
+  assert.equal(await card(ringId).locator('.fragment-source').textContent(),'Cut into 4 fragments');
+  await card(ringId).click();
+  assert.equal(await page.locator('.material-descendants button').count(),4);
+  await page.locator('#close-material').click();
+  await seek(hiddenTrim);
+  assert.equal((await outlineInfo()).hidden,true);
+  for (const child of children(hiddenTrim,'tray-parent')) assert.match(await card(child.id).getAttribute('class'),/is-unplaced/);
+  await page.locator('#final-step').click(); await waitFrame(actions.length);
+  assert.equal((await outlineInfo()).hidden,true);
+  await mark('Trim playback preserves all connected children, transparent scraps, complete lineage, and compound/multiple outlines with correct hole occlusion');
+
+  let studioState=trimFrames[2], studioCursor=2;
+  const envelope = () => ({state:studioState,history:fixture.actions.slice(0,studioCursor),cursor:studioCursor,revision:studioCursor,canUndo:true,canRedo:false});
+  await page.route('**/api/state',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(envelope())}));
+  await page.route('**/api/status',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({revision:studioCursor})}));
+  await page.goto(`${origin}/studio.html`);
+  await page.locator('[data-piece="parent"]').focus(); await page.keyboard.press('Enter');
+  assert.equal(await page.locator('#remove-piece').isEnabled(),true);
+  studioState=lastFrame; studioCursor=actions.length;
+  await page.waitForFunction(()=>document.querySelector('#remove-piece')?.textContent==='Recut');
+  for (const field of ['remove-piece','piece-x','piece-y','piece-rotation','piece-scale','send-back','bring-front']) assert.equal(await page.locator(`#${field}`).isDisabled(),true);
+  const trayIds=lastFrame.pieces.filter(piece=>!piece.visible&&!piece.supersededBy).map(piece=>piece.id).sort();
+  assert.deepEqual((await page.locator('[data-tray]').evaluateAll(elements=>elements.map(element=>element.dataset.tray))).sort(),trayIds);
+  assert.equal(Number(await page.locator('#tray-count').textContent()),trayIds.length);
+  assert.equal(await page.locator('#piece-budget').textContent(),`${usablePieceCount(lastFrame)} / 24`);
+  await page.locator(`[data-tray="${trayRingId}"]`).click();
+  assert.equal(await page.locator('#remove-piece').isEnabled(),true,'scraps can be placed again');
+  const [studioHole,studioMaterial]=await svgPixels('#piece-inspector .piece-preview svg',200,200,[[100,100],[10,10]]);
+  assert.equal(studioHole[3],0); assert.equal(studioMaterial[3],255);
+  await page.locator('#trace-source').click();
+  const trace=page.locator(`#source-canvas [data-trace-piece="${trayRingId}"]`);
+  assert.equal(await trace.getAttribute('fill-rule'),'evenodd');
+  assert.equal(await trace.evaluate(element=>element.getAttribute('d').split('M').length-1),2);
+  await screenshot('trim-studio-source-trace.png');
+  await page.locator('#cut-dialog .close-dialog').click();
+  // Return the isolated fixture to the placed ring, then check real SVG hit
+  // testing: its empty center must select the underlying strip, not the ring.
+  studioState=trimFrames[maskedUnderlay]; studioCursor=maskedUnderlay;
+  await page.waitForSelector(`[data-piece="${ringId}"]`);
+  const hit = await page.locator('#composition').evaluate(svg=>{
+    const at=(x,y)=>{const point=new DOMPoint(x,y).matrixTransform(svg.getScreenCTM());return document.elementFromPoint(point.x,point.y)?.dataset.piece||null;};
+    return {throughHole:at(275,140),onRing:at(195,140)};
+  });
+  assert.equal(hit.throughHole,'underlay'); assert.equal(hit.onRing,ringId);
+  await mark('Studio exposes every usable scrap, retires only parents, counts usable slots, traces holes and lets hit-testing pass through them');
+  await page.unroute('**/api/state'); await page.unroute('**/api/status');
+  await page.unroute('**/api/runs/run-trim-fixture{,/**}',fixtureRoute);
+}
 try {
   await page.goto(`${origin}/work.html?run=archive-003`);
   await waitFrame(finalStep);
@@ -260,6 +409,7 @@ try {
   assert.ok(samples.every(sample => sample.opacity === '1' && sample.imageCount === 1));
   assert.equal(digest(await responseBytes(`${archivePath}/project`)), digest(projectBefore));
   assert.equal(digest(await responseBytes(`${archivePath}/render.png`)), digest(pngBefore));
+  await checkTrimPlayback();
   assert.deepEqual(errors, []);
   await mark(`${samples.length} paint samples show matching image/outline and full image opacity; saved project and final PNG unchanged; no page errors`);
   await writeFile(new URL('playback-outline-qa.json', output), JSON.stringify({ origin, checks, paintSamples: samples.length, projectSHA256: digest(projectBefore), finalPNGSHA256: digest(pngBefore), errors }, null, 2));

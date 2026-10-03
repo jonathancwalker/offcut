@@ -22,7 +22,13 @@ The experiment used 48 agent actions in five batches after the owner's five init
 | Inspect an earlier step | `GET /api/state?step=N`, `GET /api/render.png?step=N` | Reconstructed retained history without changing live state |
 | Export project | `GET /api/project` | Source inventory, rules, canvas, timestamps, actions and cursor |
 
-The action vocabulary is `cut`, `place`, `transform`, `reorder`, `remove`, and `describe`. Cuts use source-image pixel coordinates. Placement uses canvas pixels with the fragment bounding box's center as its anchor. Scale is uniform. Full details are in [AGENT_PROTOCOL.md](../AGENT_PROTOCOL.md).
+The action vocabulary is `cut`, `trim`, `place`, `transform`, `reorder`, `remove`, and `describe`. Cuts and trims use source-image pixel coordinates. Placement uses canvas pixels with the fragment bounding box's center as its anchor. Scale is uniform. Full details are in [AGENT_PROTOCOL.md](../AGENT_PROTOCOL.md).
+
+`trim` takes `{type:"trim",pieceId,newPieceId,polygon}` and uses the polygon as a mask over a usable piece's actual material. The input mask follows the source-cut geometry rules but may cross the parent's boundary or holes. Intersecting it with the parent cannot add material. Empty or unchanged results are rejected. Each connected retained component becomes a child with the same visible placement and layer; each connected offcut becomes a usable hidden child in the tray. A later action may place or further trim an offcut.
+
+The first retained child receives `newPieceId`; other retained children and all offcuts receive generated `piece-N` IDs. Each child records `parentPieceId` and `trimRole` (`retained` or `offcut`). The retired parent records `supersededBy` for its first retained child and `childPieceIds` for the full result. Models should inspect the new state before referring to generated IDs. A piece's `polygon` is its outer boundary, with optional `holes` containing absent source material. Holes are derived by the engine, not supplied in the action, and cannot be filled by trimming.
+
+Each trim consumes one action. Fragment capacity counts usable pieces, including all hidden offcuts, and excludes retired parents. The whole trim is rejected if its complete result exceeds capacity. Generated output preserves small scraps and boundaries beyond the input minimum-area or vertex rules; a separate 8192-vertex limit across all output outer boundaries and holes rejects overly complex trims atomically. Source areas remain consumed: an offcut is reused through its child ID, never through a duplicate source cut.
 
 For example, a model can request this existing action without using a mouse:
 
@@ -37,7 +43,7 @@ For example, a model can request this existing action without using a mouse:
 }
 ```
 
-The shared engine enforces simple source polygons, source boundaries, one-time material consumption, piece/action limits, and transform bounds. The renderer clips source images and composites them into SVG and PNG. Observation and command execution are already separate.
+The shared engine enforces simple input polygons, source boundaries, one-time material consumption, usable-piece/action limits, and transform bounds. The renderer clips source images to outer boundaries and holes and composites them into SVG and PNG. Observation and command execution are already separate.
 
 ## Integrated experiment runner
 
@@ -59,7 +65,7 @@ Run input is `{provider:"openai",model,prompt,maxTurns,maxActions,maxPieces,maxO
 
 The model returns `{decision_note,actions,done}` with up to 12 actions per batch. The engine validates the entire batch atomically. Invalid JSON or actions consume a turn and return corrective feedback; the raw response and rejection remain in the log. A network error stops the run without a retry. Each turn receives all sources and the current canvas as native image attachments, resized to a 1536-pixel maximum edge, plus compact scene state and prior text. Original source coordinates remain authoritative.
 
-New runs use policy version 2 (`offcut-actions-v2`) and allow 3–64 vertices per cut. Instructions take their geometric limits from the run's frozen rules. Existing records retain their saved rules and policy, including the earlier 16-vertex limit.
+New runs use policy version 3 (`offcut-actions-v3`), adding physical trims, usable offcuts, and usable-fragment capacity. Inputs allow 3–64 vertices per source cut or trim mask; generated child boundaries follow the separate output-complexity limit. Instructions take their input limits from the run's frozen rules and describe child IDs, roles, holes, and retirement. Version 3 remains the unreleased trim protocol rather than creating a new version for this draft revision. Existing records retain their saved rules and policy, including the earlier 16-vertex limit and version 2's final-review behavior.
 
 Completion requires a response after the final visible scene has been supplied as a canvas image. If `done:true` accompanies a batch that changes visible pieces, their geometry, or their layer order, the edits remain accepted and the batch records `completionDeferred:true`. The next turn shows the updated canvas and asks the model to confirm or revise. Further visual edits need another observation. Description-only changes, hidden material, and edits that restore the same visible scene can finish immediately; the comparison conservatively treats changes to fully covered pieces as visual changes too. A `final_review` event links successful confirmation to the observation's canvas hash and records both its observed step and the final action cursor.
 
