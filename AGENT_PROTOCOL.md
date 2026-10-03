@@ -14,7 +14,7 @@ The assignment is open-ended: inspect the available materials, choose what the w
 - `GET /api/render.svg`: portable vector container with embedded source images.
 - `GET /api/state?step=N` and `GET /api/render.png?step=N`: inspect after N actions without changing the live state. Step 0 is empty.
 
-State includes canvas dimensions, source IDs and dimensions, source credits, current pieces, rule limits, title, statement, and action count. Read the actual rules rather than assuming the defaults. New canvases allow up to 64 vertices per cut; existing projects retain their saved limits.
+State includes canvas dimensions, source IDs and dimensions, source credits, current pieces, rule limits, title, statement, and action count. Read the actual rules rather than assuming the defaults. New canvases allow up to 64 vertices per source cut or trim mask; existing projects retain their saved limits. A piece has an outer `polygon` and may have `holes`, an array of source-coordinate polygons where material is absent. Generated trim results can have more vertices or less area than an input polygon permits.
 
 ## Act
 
@@ -51,11 +51,17 @@ These coordinates are an API example, not a suggested composition. Inspect the a
 {"type":"trim","pieceId":"first-fragment","newPieceId":"refined-fragment","polygon":[[350,15],[580,15],[570,190],[350,190]]}
 ```
 
-The polygon uses **original source-image pixels**, not canvas coordinates or coordinates relative to the fragment. It must lie entirely inside the immediate parent polygon, remove some area, and meet the same vertex and minimum-area rules as a source cut. Shared boundary edges are allowed. `newPieceId` is required and must be unique.
+The polygon is a mask in **original source-image pixels**, not canvas coordinates or coordinates relative to the fragment. It must be a valid simple polygon within the source image and meet the same vertex and minimum-area rules as a source cut. It may extend beyond the parent or across existing holes: the engine retains only the intersection with the parent's actual material. A successful trim must retain some material and separate some offcut; an empty or unchanged result is rejected. `newPieceId` is required and must be unique.
 
-Trim creates a new fragment, retaining the parent's visibility, scale, rotation, and layer. The engine adjusts its bounding-box center so the retained image stays exactly in place. That derived center can fall outside the canvas when trimming a piece that extends beyond it; explicit placement coordinates must still stay inside the canvas.
+Every connected retained component becomes a separate child, retaining the parent's visibility, scale, rotation, and position among visible layers. Every connected offcut becomes a separate **usable fragment in the tray**, initially hidden. Offcuts can be placed, transformed, reordered, removed, or trimmed again. The engine adjusts each child's bounding-box center so its source pixels retain their canvas position. A derived center can fall outside the canvas when trimming a piece that extends beyond it; explicit placement coordinates must still stay inside the canvas.
 
-The old fragment is permanently hidden and marked `supersededBy`; the child records `parentPieceId`. Use the new ID afterward. The old piece cannot be placed, transformed, reordered, removed, or trimmed again. The discarded material stays consumed and cannot be cut from the source again. You may trim the child further, but cannot add any material back. Each trim costs **one action and one new fragment slot**; historical parents still count toward the fragment limit.
+The first retained child receives `newPieceId`. Other retained children and all offcuts receive generated `piece-N` IDs. Read the returned state for those IDs; do not guess them. Every child records `parentPieceId` and `trimRole`, either `"retained"` or `"offcut"`. The parent records `childPieceIds` for all children and `supersededBy` for the first retained child. It stays permanently hidden and cannot be placed, transformed, reordered, removed, or trimmed again.
+
+Pieces may now have holes. For example, retaining a square from the middle of a larger square creates a retained square and one offcut with a square hole. A later mask crossing that hole does not fill it. Do not supply `holes` in the action: the engine derives the output boundaries. Source material remains consumed, so reuse an offcut through its child ID rather than cutting that area from the original source again.
+
+Each trim costs **one action**. The fragment limit counts **usable pieces**: all retained children and offcuts count, including hidden ones; retired parents do not. Capacity after a trim is the previous usable count minus one parent plus the number of children. Removing a child does not free capacity. If the complete result would exceed the limit, the whole trim is rejected.
+
+Generated children preserve small scraps and complex boundaries even when they are below the input minimum area or above the input vertex limit. A separate limit of **8192 total output vertices**, summed across every child outer boundary and hole, rejects the whole trim if exceeded. No offcuts are silently discarded.
 
 ### Change a piece
 
@@ -71,7 +77,7 @@ Supply only the properties you want to change. All coordinates must be finite an
 {"type":"reorder","pieceId":"refined-fragment","index":0}
 ```
 
-The piece array is ordered back to front, including pieces in the tray; index 0 is the back. Use `state.pieces.length - 1` for the front.
+The piece array is ordered back to front, including hidden and retired pieces; index 0 is the back. Use `state.pieces.length - 1` for the front. This array length includes historical parents and is not the usable-fragment count.
 
 ```json
 {"type":"remove","pieceId":"refined-fragment"}

@@ -76,7 +76,7 @@ test('source uploads preserve history and invalid project imports cannot replace
   assert.equal(result.data.cursor, 2);
 });
 
-test('trim history replays through HTTP and portable imports without restoring discarded material', async t => {
+test('trim history replays through HTTP and portable imports without duplicating offcut material', async t => {
   const { request } = await fixture(t);
   const help = (await request('/api/help')).data;
   assert.ok(help.actions.some(action => action.type === 'trim' && action.newPieceId));
@@ -87,11 +87,15 @@ test('trim history replays through HTTP and portable imports without restoring d
   const trimmed = await request('/api/actions', trim);
   assert.equal(trimmed.status, 200, JSON.stringify(trimmed.data));
   assert.equal(trimmed.data.cursor, 3);
-  const [parent, child] = trimmed.data.state.pieces;
+  const [parent, child, offcut] = trimmed.data.state.pieces;
   assert.equal(parent.visible, false);
   assert.equal(parent.supersededBy, child.id);
   assert.equal(child.parentPieceId, parent.id);
   assert.equal(child.visible, true);
+  assert.equal(offcut.parentPieceId, parent.id);
+  assert.equal(offcut.trimRole, 'offcut');
+  assert.equal(offcut.visible, false);
+  assert.deepEqual(parent.childPieceIds, [child.id, offcut.id]);
   assert.equal((await request('/api/state?step=2')).data.state.pieces[0].visible, true);
   assert.equal((await request('/api/state?step=2')).data.state.pieces.length, 1);
   const discardedCut = { ...cut, pieceId: 'discarded', polygon: [[0, 0], [10, 0], [10, 30], [0, 30]] };
@@ -109,6 +113,36 @@ test('trim history replays through HTTP and portable imports without restoring d
   tampered.actions[2].action.polygon = [[0, 0], [40, 0], [40, 30], [0, 30]];
   assert.equal((await request('/api/project', tampered)).status, 400);
   assert.deepEqual((await request('/api/state')).data.state, imported.data.state);
+});
+
+test('hole-bearing offcuts survive HTTP reuse, repeated trimming, undo and portable replay', async t => {
+  const { request } = await fixture(t);
+  const created = await request('/api/actions', { actions: [
+    { ...cut, polygon: [[0, 0], [60, 0], [60, 60], [0, 60]] }, place,
+    { type: 'trim', pieceId: 'fragment', newPieceId: 'center', polygon: [[20, 20], [40, 20], [40, 40], [20, 40]] },
+  ] });
+  assert.equal(created.status, 200, JSON.stringify(created.data));
+  const offcut = created.data.state.pieces.find(piece => piece.trimRole === 'offcut');
+  assert.equal(offcut.holes.length, 1);
+  assert.equal((await request('/api/actions', { type: 'place', pieceId: offcut.id, x: 200, y: 200 })).status, 200);
+  const trimmed = await request('/api/actions', { type: 'trim', pieceId: offcut.id, newPieceId: 'ring', polygon: [[10, 10], [50, 10], [50, 50], [10, 50]] });
+  assert.equal(trimmed.status, 200, JSON.stringify(trimmed.data));
+  const ring = trimmed.data.state.pieces.find(piece => piece.id === 'ring');
+  assert.equal(ring.holes.length, 1);
+  assert.equal(ring.visible, true);
+  assert.equal(trimmed.data.state.pieces.filter(piece => !piece.supersededBy).length, 3);
+  const exported = (await request('/api/project')).data;
+  assert.equal((await request('/api/undo', {})).data.state.pieces.find(piece => piece.id === offcut.id).visible, true);
+  assert.deepEqual((await request('/api/redo', {})).data.state, trimmed.data.state);
+  await request('/api/reset', {});
+  const imported = await request('/api/project', exported);
+  assert.equal(imported.status, 200, JSON.stringify(imported.data));
+  assert.deepEqual(imported.data.state.pieces, trimmed.data.state.pieces);
+  assert.deepEqual(await renderPNG(imported.data.state), await renderPNG(trimmed.data.state));
+  const bundle = await request('/vendor/polyclip.mjs');
+  assert.equal(bundle.status, 200);
+  assert.match(bundle.response.headers.get('content-type'), /javascript/);
+  assert.match(bundle.data, /0\.16\.8/);
 });
 
 test('the image API exports original pixels and handles invalid image input', async t => {

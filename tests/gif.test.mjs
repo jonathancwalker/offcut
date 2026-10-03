@@ -4,6 +4,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { getSharp } from '../lib/render.mjs';
+import { createState, applyAction } from '../lib/engine.mjs';
 import { createGIFExporter, gifSettings, renderGIF } from '../lib/gif.mjs';
 import { startServer } from '../server.mjs';
 
@@ -105,7 +106,7 @@ test('GIF ends at the saved cursor while the source inventory and redo history s
   assert.equal(saved.actions.length, 9);
 });
 
-test('GIF playback retains a trimmed fragment in place and removes its discarded pixels', async () => {
+test('GIF playback retains a trimmed fragment in place while its offcut waits in the tray', async () => {
   const original = await fixture();
   const saved = project([
     ...original.actions.slice(0, 2).map(record => record.action),
@@ -118,9 +119,37 @@ test('GIF playback retains a trimmed fragment in place and removes its discarded
   assert.deepEqual(pixel(2, 20, 24), RED);
   assert.deepEqual(pixel(2, 28, 24), RED);
   for (const frame of [3, 4]) {
-    assert.deepEqual(pixel(frame, 20, 24), WHITE, 'discarded material is absent');
+    assert.deepEqual(pixel(frame, 20, 24), WHITE, 'unplaced offcut is absent from the canvas');
     assert.deepEqual(pixel(frame, 28, 24), RED, 'the retained half stays in place');
   }
+  assert.deepEqual(saved, before);
+});
+
+test('GIF replay shows a reused offcut with a transparent hole and the result of cutting it again', async () => {
+  const original = await fixture();
+  const saved = project([], { sources: original.sources });
+  let state = createState({ sources: saved.sources, canvas: saved.canvas, rules: saved.rules });
+  const act = action => {
+    state = applyAction(state, action);
+    saved.actions.push({ action, at: saved.createdAt });
+    saved.cursor++;
+  };
+  for (const { action } of original.actions.slice(0, 2)) act(action);
+  act({ type: 'trim', pieceId: 'red', newPieceId: 'red-center', polygon: [[2, 2], [14, 2], [14, 14], [2, 14]] });
+  const offcut = state.pieces.find(piece => piece.trimRole === 'offcut');
+  act({ type: 'remove', pieceId: 'red-center' });
+  for (const { action } of original.actions.slice(2, 4)) act(action);
+  act({ type: 'place', pieceId: offcut.id, x: 24, y: 24 });
+  act({ type: 'reorder', pieceId: offcut.id, index: state.pieces.length - 1 });
+  act({ type: 'trim', pieceId: offcut.id, newPieceId: 'thin-ring', polygon: [[1, 1], [15, 1], [15, 15], [1, 15]] });
+  const before = structuredClone(saved);
+  const { metadata, pixel } = await decode(await renderGIF(saved));
+  assert.equal(metadata.pages, saved.cursor + 1);
+  assert.deepEqual(pixel(8, 24, 24), BLUE, 'underlying material shows through the reused scrap');
+  assert.deepEqual(pixel(8, 16, 24), RED, 'its outer edge retains red pixels');
+  assert.deepEqual(pixel(9, 24, 24), BLUE, 'trimming again preserves the old hole');
+  assert.deepEqual(pixel(9, 16, 24), BLUE, 'the newly separated border is unplaced');
+  assert.deepEqual(pixel(9, 17, 24), RED, 'the thinner retained ring stays in place');
   assert.deepEqual(saved, before);
 });
 

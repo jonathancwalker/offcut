@@ -1,4 +1,4 @@
-import { createState, applyAction, polygonBounds, polygonArea } from '/engine.mjs';
+import { createState, applyAction, polygonBounds, polygonArea, pieceRings, usablePieceCount } from '/engine.mjs';
 
 const $ = id => document.getElementById(id);
 const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -78,13 +78,18 @@ function transformed(piece) {
   return `translate(${piece.x} ${piece.y}) rotate(${piece.rotation}) scale(${piece.scale}) translate(${-piece.bounds.width/2} ${-piece.bounds.height/2})`;
 }
 
+function pieceShape(piece, attributes='', offset={x:0,y:0}) {
+  const points = ring => ring.map(([x,y]) => `${x-offset.x},${y-offset.y}`);
+  if (piece.holes?.length) return `<path d="${pieceRings(piece).map(ring=>`M${points(ring).join('L')}Z`).join('')}" fill-rule="evenodd" clip-rule="evenodd" ${attributes}/>`;
+  return `<polygon points="${points(piece.polygon).join(' ')}" ${attributes}/>`;
+}
+
 function pieceSVG(piece, state, prefix, interactive = false) {
   const source = state.sources.find(s => s.id === piece.sourceId);
   if (!source) return '';
   const b = piece.bounds;
-  const points = piece.polygon.map(([x,y]) => `${x-b.x},${y-b.y}`).join(' ');
   const clip = `${prefix}-${state.pieces.indexOf(piece)}`;
-  return `<g ${interactive ? `data-fragment="${escape(piece.id)}" transform="${transformed(piece)}"` : ''}><defs><clipPath id="${escape(clip)}"><polygon points="${points}"/></clipPath></defs><g clip-path="url(#${escape(clip)})" pointer-events="none"><image x="${-b.x}" y="${-b.y}" width="${source.width}" height="${source.height}" href="${source.dataUrl}"/></g>${interactive ? `<polygon class="piece-hit" data-piece="${escape(piece.id)}" tabindex="0" role="button" aria-label="Select fragment from ${escape(source.name)}" points="${points}" fill="transparent"/>` : ''}</g>`;
+  return `<g ${interactive ? `data-fragment="${escape(piece.id)}" transform="${transformed(piece)}"` : ''}><defs><clipPath id="${escape(clip)}">${pieceShape(piece,'',b)}</clipPath></defs><g clip-path="url(#${escape(clip)})" pointer-events="none"><image x="${-b.x}" y="${-b.y}" width="${source.width}" height="${source.height}" href="${source.dataUrl}"/></g>${interactive ? pieceShape(piece,`class="piece-hit" data-piece="${escape(piece.id)}" tabindex="0" role="button" aria-label="Select fragment from ${escape(source.name)}" fill="transparent"`,b) : ''}</g>`;
 }
 
 function miniature(piece, prefix='mini') {
@@ -146,7 +151,7 @@ function renderCanvas() {
   const piece = shown.pieces.find(p => p.id === selectedId && p.visible);
   if (piece && replayStep === null) {
     const b = piece.bounds;
-    canvas.insertAdjacentHTML('beforeend', `<g class="selection-outline" transform="${transformed(piece)}"><rect x="0" y="0" width="${b.width}" height="${b.height}" stroke-dasharray="6 4"/></g>`);
+    canvas.insertAdjacentHTML('beforeend', `<g class="selection-outline" transform="${transformed(piece)}">${piece.holes?.length ? pieceShape(piece,'stroke-dasharray="6 4"',b) : `<rect x="0" y="0" width="${b.width}" height="${b.height}" stroke-dasharray="6 4"/>`}</g>`);
   }
   $('empty-canvas').hidden = shown.pieces.some(p => p.visible);
   $('canvas-help').textContent = replayStep !== null ? 'Replay · editing paused' : piece ? 'Drag to move' : shown.pieces.some(p=>p.visible) ? 'Select a fragment' : 'Choose a material';
@@ -167,7 +172,7 @@ function renderInspector() {
   const source = shown.sources.find(s=>s.id===piece.sourceId);
   const disabled = replayStep !== null || piece.supersededBy ? 'disabled' : '';
   const relatedName = id => `Fragment ${String(shown.pieces.findIndex(item=>item.id===id)+1).padStart(2,'0')}`;
-  const lineage = piece.supersededBy ? `Recut as ${relatedName(piece.supersededBy)}` : piece.parentPieceId ? `Cut from ${relatedName(piece.parentPieceId)}` : '';
+  const lineage = piece.supersededBy ? piece.childPieceIds?.length > 1 ? `Cut into ${piece.childPieceIds.length} fragments` : `Recut as ${relatedName(piece.supersededBy)}` : piece.parentPieceId ? `${piece.trimRole === 'offcut' ? 'Offcut' : 'Cut'} from ${relatedName(piece.parentPieceId)}` : '';
   $('inspector-title').textContent = `Fragment ${String(shown.pieces.indexOf(piece)+1).padStart(2,'0')}`;
   area.innerHTML = `<div class="piece-preview">${miniature(piece,'inspector')}</div><div class="piece-origin"><span class="origin-name" title="${escape(source.name)}">${escape(source.name)}</span>${lineage ? `<span class="origin-name">${lineage}</span>` : ''}<button id="trace-source" class="text-button">View source ↗</button></div><div class="transform-fields"><label>X<input id="piece-x" type="number" min="0" max="${shown.canvas.width}" value="${Math.round(piece.x)}" ${disabled}></label><label>Y<input id="piece-y" type="number" min="0" max="${shown.canvas.height}" value="${Math.round(piece.y)}" ${disabled}></label><label>Rotation °<input id="piece-rotation" type="number" step="5" value="${Math.round(piece.rotation)}" ${disabled}></label><label>Scale %<input id="piece-scale" type="number" min="${shown.rules.minScale*100}" max="${shown.rules.maxScale*100}" step="5" value="${Math.round(piece.scale*100)}" ${disabled}></label></div><div class="piece-actions"><button id="send-back" class="secondary-button" ${disabled}>Back ↓</button><button id="bring-front" class="secondary-button" ${disabled}>Front ↑</button></div><button id="remove-piece" class="text-button remove-button" ${disabled}>${piece.supersededBy ? 'Recut' : piece.visible ? 'Move to tray' : 'Place on canvas'}</button>`;
   $('trace-source').addEventListener('click',()=>openSource(piece.sourceId,piece));
@@ -210,13 +215,13 @@ function render() {
   $('live-button').hidden = replayStep === null;
   $('replay-button').disabled = !live.history.length;
   $('action-caption').textContent = live.history.length ? actionCaption(live.history[(replayStep??live.cursor)-1]) : 'No actions yet';
-  $('piece-budget').textContent = `${shown.pieces.length} / ${shown.rules.maxPieces}`;
+  $('piece-budget').textContent = `${usablePieceCount(shown)} / ${shown.rules.maxPieces}`;
   $('action-budget').textContent = `${shown.actionCount} / ${shown.rules.maxActions}`;
-  $('piece-progress').style.width = `${shown.pieces.length/shown.rules.maxPieces*100}%`;
+  $('piece-progress').style.width = `${usablePieceCount(shown)/shown.rules.maxPieces*100}%`;
   renderSources(); renderCanvas(); renderInspector();
   const tray = shown.pieces.filter(p=>!p.visible&&!p.supersededBy);
   $('tray-count').textContent = tray.length;
-  $('tray').innerHTML = tray.length ? tray.map(p=>`<button class="tray-piece" data-tray="${escape(p.id)}" aria-label="Select fragment ${escape(p.id)} in tray">${miniature(p,'tray')}</button>`).join('') : '<p class="subtle">No unplaced fragments</p>';
+  $('tray').innerHTML = tray.length ? tray.map(p=>`<button class="tray-piece" data-tray="${escape(p.id)}" aria-label="Select ${p.trimRole === 'offcut' ? 'offcut' : 'fragment'} ${escape(p.id)} in tray">${miniature(p,'tray')}</button>`).join('') : '<p class="subtle">No unplaced fragments</p>';
   $('tray').querySelectorAll('[data-tray]').forEach(button => button.addEventListener('click',()=>{selectedId=button.dataset.tray;renderCanvas();renderInspector();}));
 }
 
@@ -289,7 +294,10 @@ function renderCut() {
   const used=shown.pieces.filter(p=>p.sourceId===sourceId&&!p.parentPieceId);
   const line=Math.max(source.width,source.height)/350;
   svg.innerHTML=`<image href="${source.dataUrl}" width="${source.width}" height="${source.height}"/><defs><pattern id="used-material" width="20" height="20" patternUnits="userSpaceOnUse"><rect width="20" height="20" fill="#faf9f6" fill-opacity=".82"/><path d="M-5 5L5-5M0 20L20 0M15 25L25 15" stroke="#a7aaa2" stroke-width="1.5"/></pattern></defs>${used.map(p=>`<polygon points="${p.polygon.map(v=>v.join(',')).join(' ')}" fill="url(#used-material)" stroke="#8c9187" stroke-width="${line}"/>`).join('')}`;
-  if(cutPoints.length){
+  const tracedPiece=shown.pieces.find(piece=>piece.id===$('cut-dialog').dataset.trace);
+  if(tracedPiece?.holes?.length){
+    svg.insertAdjacentHTML('beforeend',pieceShape(tracedPiece,`data-trace-piece="${escape(tracedPiece.id)}" fill="#d34d3226" stroke="#d34d32" stroke-width="${line*1.5}" stroke-dasharray="${line*3} ${line*2}"`));
+  } else if(cutPoints.length){
     const closed=cutTool==='rectangle'||polygonComplete;
     svg.insertAdjacentHTML('beforeend',`<${closed?'polygon':'polyline'} points="${cutPoints.map(p=>p.join(',')).join(' ')}" fill="${closed?'#d34d3226':'none'}" stroke="#d34d32" stroke-width="${line*1.5}" stroke-dasharray="${line*3} ${line*2}"/>${cutTool==='polygon'?cutPoints.map((p,i)=>`<circle cx="${p[0]}" cy="${p[1]}" r="${line*(i===0?3:2)}" fill="${i===0?'#faf9f6':'#d34d32'}" stroke="#d34d32" stroke-width="${line}"/>`).join(''):''}`);
   }
@@ -419,7 +427,7 @@ document.querySelectorAll('.close-dialog').forEach(button=>button.addEventListen
 document.querySelectorAll('dialog').forEach(dialog=>dialog.addEventListener('click',event=>{if(event.target===dialog){const r=dialog.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)dialog.close();}}));
 
 function canvasDetails(){
-  info('Canvas details',`<dl class="metadata-list"><dt>Size</dt><dd>${shown.canvas.width} × ${shown.canvas.height}</dd><dt>Fragments</dt><dd>${shown.pieces.length} / ${shown.rules.maxPieces}</dd><dt>Actions</dt><dd>${shown.actionCount} / ${shown.rules.maxActions}</dd></dl><label class="statement-label" for="dialog-statement">Statement</label><textarea id="dialog-statement" class="statement-editor" rows="5" maxlength="4000" placeholder="Add a statement" ${replayStep!==null?'disabled':''}>${escape(shown.statement)}</textarea>`);
+  info('Canvas details',`<dl class="metadata-list"><dt>Size</dt><dd>${shown.canvas.width} × ${shown.canvas.height}</dd><dt>Usable fragments</dt><dd>${usablePieceCount(shown)} / ${shown.rules.maxPieces}</dd><dt>Actions</dt><dd>${shown.actionCount} / ${shown.rules.maxActions}</dd></dl><label class="statement-label" for="dialog-statement">Statement</label><textarea id="dialog-statement" class="statement-editor" rows="5" maxlength="4000" placeholder="Add a statement" ${replayStep!==null?'disabled':''}>${escape(shown.statement)}</textarea>`);
   $('dialog-statement').addEventListener('change',event=>{if(replayStep===null){$('statement').value=event.target.value;saveDescription();}});
 }
 $('canvas-details-button').addEventListener('click',canvasDetails);
@@ -436,7 +444,7 @@ $('agent-button').addEventListener('click',()=>{
   info('Agent access',`<p>Give these instructions to an agent with access to this computer, or <a href="/experiments.html">run a model in Experiments</a>.</p><pre id="agent-prompt">${escape(prompt)}</pre><div class="info-actions"><button id="copy-agent" class="primary-button">Copy instructions</button><a class="secondary-button" href="/api/help" target="_blank" rel="noopener">Action reference ↗</a></div><p class="info-content-note">Local access only. Actions appear on the canvas as the agent works.</p>`);
   $('copy-agent').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(prompt);$('copy-agent').textContent='Copied ✓';}catch{toast('Select and copy the instructions above.');}});
 });
-$('rules-button').addEventListener('click',()=>info('Rules',`<ul><li>Cut rectangles or simple polygons with up to ${shown.rules.maxVertices} corners.</li><li>Each source area can be cut once. A piece in the tray still uses its material.</li><li>Recut a fragment into a smaller one. The parent and discarded scraps cannot be reused.</li><li>Move, rotate, uniformly resize, layer, and remove pieces.</li><li>Up to ${shown.rules.maxPieces} fragments and ${shown.rules.maxActions} recorded actions. A cut and placement are two actions. A recut uses one action and one new fragment.</li><li>Smallest cut: ${shown.rules.minArea} square source pixels. Size range: ${shown.rules.minScale*100}–${shown.rules.maxScale*100}%.</li><li>Source colors stay unchanged. The renderer adds a plain paper background.</li></ul><p class="info-content-note">Undo restores the earlier action budget. Editing after undo replaces the later history.</p><p class="info-content-note">The starter pack’s credits are included in every saved project. <a href="/sources/CREDITS.md" target="_blank">Source records ↗</a></p>`));
+$('rules-button').addEventListener('click',()=>info('Rules',`<ul><li>Cut rectangles or simple polygons with up to ${shown.rules.maxVertices} corners.</li><li>Each source area can be cut once. A piece in the tray still uses its material.</li><li>Recut a fragment into smaller pieces. Every offcut stays usable in the tray; the parent is retired.</li><li>Move, rotate, uniformly resize, layer, and remove pieces.</li><li>Up to ${shown.rules.maxPieces} fragments and ${shown.rules.maxActions} recorded actions. A cut and placement are two actions. A recut uses one action; every usable result counts toward the fragment limit, replacing its parent.</li><li>Minimum drawn selection: ${shown.rules.minArea} square source pixels. Generated scraps may be smaller. Size range: ${shown.rules.minScale*100}–${shown.rules.maxScale*100}%.</li><li>Source colors stay unchanged. The renderer adds a plain paper background.</li></ul><p class="info-content-note">Undo restores the earlier action budget. Editing after undo replaces the later history.</p><p class="info-content-note">The starter pack’s credits are included in every saved project. <a href="/sources/CREDITS.md" target="_blank">Source records ↗</a></p>`));
 $('new-button').addEventListener('click',()=>{
   info('New canvas',`<p>Your source images will stay. The current composition and its action history will be cleared.</p><div class="info-actions"><a href="/api/project" download="offcut-project.json" class="secondary-button">Export project</a><button id="confirm-new" class="primary-button">Clear canvas</button></div>`);
   $('confirm-new').addEventListener('click',async()=>{stopReplay();replayStep=null;if(await mutate('/api/reset',{keepSources:true})){$('info-dialog').close();selectedId=null;render();toast('Canvas cleared');}});

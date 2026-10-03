@@ -1,15 +1,24 @@
 // Observer-only geometry. Nothing in this module changes the saved composition
 // or adds raster sources to the viewer or any export.
-export function placedPolygon(piece) {
+export function placedPolygon(piece, polygon=piece.polygon) {
   const radians = piece.rotation * Math.PI / 180;
   const cos = Math.cos(radians), sin = Math.sin(radians);
   const centerX = piece.bounds.x + piece.bounds.width / 2;
   const centerY = piece.bounds.y + piece.bounds.height / 2;
-  return piece.polygon.map(([x, y]) => {
+  return polygon.map(([x, y]) => {
     const localX = (x - centerX) * piece.scale;
     const localY = (y - centerY) * piece.scale;
     return [piece.x + localX * cos - localY * sin, piece.y + localX * sin + localY * cos];
   });
+}
+
+export function placedRings(piece) {
+  return [piece.polygon, ...(piece.holes || [])].map(ring => placedPolygon(piece, ring));
+}
+
+function placedShape(piece) {
+  const [polygon, ...holes] = placedRings(piece);
+  return { pieceId: piece.id, polygon, ...(holes.length ? {holes} : {}) };
 }
 
 export function outlineForAction(previous, frame, action) {
@@ -21,11 +30,17 @@ export function outlineForAction(previous, frame, action) {
   const moved = !before?.visible || ['x', 'y', 'rotation', 'scale'].some(key => before[key] !== piece[key]);
   const visibleIndex = state => state.pieces.filter(item => item.visible).findIndex(item => item.id === piece.id);
   if (!moved && visibleIndex(previous) === visibleIndex(frame)) return null;
-  return {
-    pieceId: piece.id,
-    polygon: placedPolygon(piece),
-    occluders: frame.pieces.slice(index + 1).filter(item => item.visible).map(item => ({ pieceId: item.id, polygon: placedPolygon(item) })),
-  };
+  const outline = target => ({
+    ...placedShape(target),
+    occluders: frame.pieces.slice(frame.pieces.indexOf(target) + 1).filter(item => item.visible).map(placedShape),
+  });
+  const result = outline(piece);
+  if (action.type === 'trim') {
+    const existingIds = new Set(previous.pieces.map(item => item.id));
+    const additional = frame.pieces.filter(item => item.id !== piece.id && item.parentPieceId === action.pieceId && item.visible && !existingIds.has(item.id)).map(outline);
+    if (additional.length) result.additional = additional;
+  }
+  return result;
 }
 
 // object-fit: contain can letterbox within the image element itself, as well as
@@ -43,6 +58,11 @@ function element(tag, attributes = {}) {
   for (const [key, value] of Object.entries(attributes)) item.setAttribute(key, String(value));
   return item;
 }
+function shapeElement(shape, attributes={}) {
+  if (!shape.holes?.length) return element('polygon', {points:points(shape.polygon), ...attributes});
+  const d = [shape.polygon, ...shape.holes].map(ring => `M${ring.map(point => point.join(',')).join('L')}Z`).join('');
+  return element('path', {d, 'fill-rule':'evenodd', 'clip-rule':'evenodd', ...attributes});
+}
 
 export function createPieceHighlight(stage, overlay) {
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
@@ -55,6 +75,7 @@ export function createPieceHighlight(stage, overlay) {
     overlay.setAttribute('hidden', '');
     overlay.replaceChildren();
     delete overlay.dataset.pieceId;
+    delete overlay.dataset.pieceIds;
     delete overlay.dataset.step;
   }
   function align() {
@@ -82,15 +103,20 @@ export function createPieceHighlight(stage, overlay) {
       clear();
       if (!outline || document.hidden) return;
       const token = generation;
-      const maskId = `${overlay.id}-visible`;
       overlay.setAttribute('viewBox', `0 0 ${canvas.width} ${canvas.height}`);
-      const mask = element('mask', { id: maskId, maskUnits: 'userSpaceOnUse', maskContentUnits: 'userSpaceOnUse', x: 0, y: 0, width: canvas.width, height: canvas.height, 'mask-type': 'luminance' });
-      mask.append(element('rect', { width: canvas.width, height: canvas.height, fill: 'white' }));
-      for (const cover of outline.occluders) mask.append(element('polygon', { points: points(cover.polygon), fill: 'black', 'data-occluder': cover.pieceId }));
-      const definitions = element('defs'); definitions.append(mask);
-      const boundary = element('polygon', { points: points(outline.polygon), class: 'changed-piece-boundary', mask: `url(#${maskId})`, 'vector-effect': 'non-scaling-stroke' });
-      overlay.replaceChildren(definitions, boundary);
+      const definitions = element('defs');
+      const outlines = [outline, ...(outline.additional || [])];
+      const boundaries = outlines.map((item,index) => {
+        const maskId = `${overlay.id}-visible-${index}`;
+        const mask = element('mask', { id: maskId, maskUnits: 'userSpaceOnUse', maskContentUnits: 'userSpaceOnUse', x: 0, y: 0, width: canvas.width, height: canvas.height, 'mask-type': 'luminance' });
+        mask.append(element('rect', { width: canvas.width, height: canvas.height, fill: 'white' }));
+        for (const cover of item.occluders) mask.append(shapeElement(cover, { fill: 'black', 'data-occluder': cover.pieceId }));
+        definitions.append(mask);
+        return shapeElement(item, { class: 'changed-piece-boundary', 'data-piece-id':item.pieceId, mask: `url(#${maskId})`, 'vector-effect': 'non-scaling-stroke' });
+      });
+      overlay.replaceChildren(definitions, ...boundaries);
       overlay.dataset.pieceId = outline.pieceId;
+      overlay.dataset.pieceIds = outlines.map(item => item.pieceId).join(' ');
       overlay.dataset.step = step;
       overlay.removeAttribute('hidden');
       align();

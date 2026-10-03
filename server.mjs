@@ -173,7 +173,7 @@ async function validateProject(input) {
 
 export const API_HELP = {
   name: 'Offcut — a constrained collage worktable',
-  description: 'Invent a work using only existing source pixels. Every fragment is a polygon cut from supplied material. Source cuts may not overlap; removed and retired pieces still consume material. Trim an existing piece to create a smaller descendant, permanently discarding the remainder. Inspect your work with /api/render.png, then revise it.',
+  description: 'Invent a work using only existing source pixels. Source cuts may not overlap; removed and retired pieces still reserve source material. Trim a fragment like physical paper: selected material stays in place and every offcut remains usable in the tray. Inspect your work with /api/render.png, then revise it.',
   coordinates: 'Cuts and trims use original source-image pixels. Placement x/y is the center of the cropped fragment on the canvas; rotation is degrees clockwise. Scale is uniform. Piece order is back to front, including hidden and retired pieces. Trim preserves retained pixels in place by adjusting the bounding-box center, which may then fall outside the canvas.',
   routes: {
     'GET /api/state': 'Current state, history, cursor, and undo/redo availability. Add ?step=N to inspect the state after N actions (0 is an empty canvas). Reading a past step does not move the live cursor.',
@@ -206,7 +206,7 @@ export const API_HELP = {
     { type: 'trim', pieceId: 'my-fragment', newPieceId: 'smaller-fragment', polygon: [[30, 30], [190, 30], [190, 160], [30, 160]] },
     { type: 'describe', title: 'An original work', statement: 'What I found in these materials.' },
   ],
-  restrictions: ['No generated pixels, color filters, text overlays, arbitrary image URLs, or non-uniform stretching.', 'No material reuse: two cuts from one source cannot overlap, including discarded material.', 'Trim must remove area and stay entirely within its immediate parent polygon; the same polygon rules apply. It costs one action and one additional fragment slot, inheriting visibility, placement, and layer.', 'A trimmed parent stays in history with supersededBy but cannot be used again; its child records parentPieceId. Only the smaller new fragment remains usable.', 'Use pieceId on cuts for predictable subsequent references and a required unique newPieceId on trims; the response state includes all piece IDs.'],
+  restrictions: ['No generated pixels, color filters, text overlays, arbitrary image URLs, or non-uniform stretching.', 'No material reuse: two source cuts cannot overlap, including hidden and retired fragments.', 'Trim intersects its polygon mask with the actual parent material. It must keep and separate some material; extending the mask beyond the parent or across holes cannot add pixels. The mask follows the source polygon rules.', 'Every connected retained region and offcut becomes a separate usable child, including small scraps. Retained children inherit visibility, placement, and layer; offcuts start hidden in the tray. Each piece has an outer polygon and optional holes in original source coordinates.', 'Trim costs one action. Every usable child counts toward maxPieces; retired parents remain in history but do not count. Removing a piece does not free a slot. If all children cannot fit the piece limit, or exceed the 8192 generated-vertex safety limit, the entire action is rejected.', 'Parents record supersededBy and childPieceIds and cannot be used again. Children record parentPieceId and trimRole (retained or offcut).', 'Use pieceId on cuts and a required unique newPieceId on trims. That ID identifies the first retained component; other children get deterministic piece-N IDs listed in the response state.'],
 };
 
 /** Construct the local app without binding a port (also used by integration tests). */
@@ -456,8 +456,8 @@ export async function createApp({ publicDir = join(ROOT, 'public'), dataDir = jo
       }
       if (path.startsWith('/api/')) fail('API endpoint not found.', 404);
       if (!['GET', 'HEAD'].includes(request.method)) fail('Method not allowed.', 405);
-      if (path === '/engine.mjs') {
-        const bytes = await readFile(join(ROOT, 'lib', 'engine.mjs'));
+      if (path === '/engine.mjs' || path === '/vendor/polyclip.mjs') {
+        const bytes = await readFile(join(ROOT, 'lib', path === '/engine.mjs' ? 'engine.mjs' : 'vendor/polyclip.mjs'));
         response.writeHead(200, { 'Content-Type': MIME['.mjs'], 'Content-Length': bytes.length, 'Cache-Control': 'no-cache' });
         return response.end(request.method === 'HEAD' ? undefined : bytes);
       }
@@ -480,7 +480,7 @@ export async function createApp({ publicDir = join(ROOT, 'public'), dataDir = jo
     } catch (error) {
       if (response.destroyed) return;
       if (response.headersSent) { response.end(); return; }
-      const validationCodes = new Set(['ACTION_LIMIT', 'INVALID_ACTION', 'INVALID_POLYGON', 'INVALID_RULES', 'INVALID_SOURCE', 'MATERIAL_OVERLAP', 'MATERIAL_EXPANSION', 'PIECE_LIMIT', 'PIECE_RETIRED']);
+      const validationCodes = new Set(['ACTION_LIMIT', 'INVALID_ACTION', 'INVALID_POLYGON', 'INVALID_RULES', 'INVALID_SOURCE', 'MATERIAL_OVERLAP', 'MATERIAL_EXPANSION', 'PIECE_LIMIT', 'PIECE_RETIRED', 'GEOMETRY_LIMIT']);
       const status = error.status || (validationCodes.has(error.code) ? 400 : 500);
       // Domain validation errors are safe, useful feedback for both humans and agents.
       if (status >= 500) logger.error?.(error);

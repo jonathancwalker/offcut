@@ -90,3 +90,32 @@ test('trim renders the retained pixels in place under rotation and scale, withou
     if (placement.x === 5) assert.ok(after.pieces[1].x < 0, 'The derived off-canvas anchor should remain intact');
   }
 });
+
+test('a reusable offcut renders its hole transparently over another piece and preserves it after another trim', async () => {
+  const input = await fixture();
+  let state = createState({ sources: input.sources, canvas: input.canvas });
+  const act = action => { state = applyAction(state, action); };
+  act({ type: 'cut', sourceId: 'source', pieceId: 'red', polygon: [[0, 0], [16, 0], [16, 16], [0, 16]] });
+  act({ type: 'place', pieceId: 'red', x: 50, y: 50, scale: 2, rotation: 90 });
+  act({ type: 'trim', pieceId: 'red', newPieceId: 'center', polygon: [[2, 2], [14, 2], [14, 14], [2, 14]] });
+  const offcut = state.pieces.find(piece => piece.trimRole === 'offcut');
+  assert.equal(offcut.holes.length, 1);
+  assert.equal(offcut.visible, false);
+  act({ type: 'remove', pieceId: 'center' });
+  act({ type: 'cut', sourceId: 'source', pieceId: 'blue', polygon: [[16, 0], [32, 0], [32, 16], [16, 16]] });
+  act({ type: 'place', pieceId: 'blue', x: 50, y: 50, scale: 2 });
+  act({ type: 'place', pieceId: offcut.id, x: offcut.x, y: offcut.y });
+  act({ type: 'reorder', pieceId: offcut.id, index: state.pieces.length - 1 });
+  let pixel = await imagePixels(state);
+  assert.deepEqual(pixel(50, 50), [0, 0, 255], 'blue remains visible through the ring');
+  assert.deepEqual(pixel(35, 50), [255, 0, 0], 'the red ring keeps original material');
+  assert.match(renderSVG(state), /clip-rule="evenodd" fill-rule="evenodd"/);
+
+  act({ type: 'trim', pieceId: offcut.id, newPieceId: 'thinner-ring', polygon: [[1, 1], [15, 1], [15, 15], [1, 15]] });
+  const thinner = state.pieces.find(piece => piece.id === 'thinner-ring');
+  assert.equal(thinner.holes.length, 1);
+  pixel = await imagePixels(state);
+  assert.deepEqual(pixel(50, 50), [0, 0, 255], 'a later trim cannot refill the hole');
+  assert.deepEqual(pixel(35, 50), [0, 0, 255], 'the new outer offcut leaves the canvas for the tray');
+  assert.deepEqual(pixel(37, 50), [255, 0, 0], 'the retained narrow ring stays in place');
+});
