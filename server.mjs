@@ -16,6 +16,7 @@ import { normalizeMaterialSelection, drawMaterialIds } from './public/material-s
 import { createCampaignManager } from './lib/study-budget.mjs';
 import { createStudyStore } from './lib/study-store.mjs';
 import { createStudyManager } from './lib/studies.mjs';
+import { createStudyAnnotationStore } from './lib/study-annotations.mjs';
 import { listRateSnapshots } from './lib/model-rates.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
@@ -178,6 +179,8 @@ export const API_HELP = {
     'POST /api/studies': 'Freeze a reviewed Study plan and its exact source bytes with {clientRequestId,draft,campaignId}. This does not start inference.',
     'GET /api/studies': 'List frozen Study records and their safe progress summaries.',
     'GET /api/studies/:id': 'Inspect one immutable Study manifest and current state.',
+    'GET /api/studies/:id/annotations': 'Read the blinded, opaque annotation slots and saved annotation versions for a Study.',
+    'POST /api/studies/:id/annotations': 'Append one stage-separated researcher annotation. Supply displayId and expectedRevision; stale revisions return 409.',
     'GET /api/studies/:id/sources/:sourceId': 'Read source bytes frozen into one Study manifest.',
     'POST /api/studies/:id/start': 'Start a ready frozen Study with {clientRequestId,manifestHash} after admission checks.',
     'POST /api/studies/:id/pause': 'Finish the current cell, then pause before launching another.',
@@ -217,6 +220,7 @@ export async function createApp({ publicDir = join(ROOT, 'public'), dataDir, ini
   let gifs;
   let campaigns;
   let studyStore;
+  let annotationStore;
   let studies;
   try {
   const sessionPath = join(dataDir, 'session.json');
@@ -243,6 +247,7 @@ export async function createApp({ publicDir = join(ROOT, 'public'), dataDir, ini
   runs = await createRunManager({ dataDir: join(dataDir, 'runs'), providerFactory: id => providerRegistry.capture(id) });
   const materials = createMaterialCatalog({ directory: join(dataDir, 'source-library') });
   studyStore = await createStudyStore({ dataDir: join(dataDir, 'studies'), materials, getInventory: () => clone(project.sources), campaigns });
+  annotationStore = await createStudyAnnotationStore({ dataDir: join(dataDir, 'annotations'), studyStore });
   batches = await createBatchManager({ dataDir: join(dataDir, 'batches'), runs, materials, getInventory: () => clone(project.sources), providerFactory: id => providerRegistry.capture(id) });
   studies = await createStudyManager({
     store: studyStore, runs, campaigns,
@@ -348,6 +353,17 @@ export async function createApp({ publicDir = join(ROOT, 'public'), dataDir, ini
           const result = await studyStore.create(await readJSON(request));
           studies.register(result.study.id);
           return sendJSON(response, result.created ? 201 : 200, { study: result.study });
+        }
+        fail('Method not allowed.', 405);
+      }
+      const annotationRoute = /^\/api\/studies\/(study-[a-f0-9-]{36})\/annotations$/.exec(path);
+      if (annotationRoute) {
+        const [, id] = annotationRoute;
+        if (request.method === 'GET') return sendJSON(response, 200, { annotations: await annotationStore.get(id) });
+        if (request.method === 'POST') {
+          const body = await readJSON(request);
+          const annotation = await serialized(() => annotationStore.annotate(id, body));
+          return sendJSON(response, 201, annotation);
         }
         fail('Method not allowed.', 405);
       }
