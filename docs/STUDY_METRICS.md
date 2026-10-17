@@ -8,7 +8,7 @@ Study analysis is a read-only operation over a completed or partially completed 
 
 ```sh
 npm run studies:analyze -- \
-  --data-root /path/to/.data \
+  --data /path/to/.data \
   --study study-00000000-0000-4000-8000-000000000000 \
   --out /path/to/report
 ```
