@@ -61,6 +61,16 @@ Limits cover model turns, accepted actions, fragments, output tokens per request
 
 The first adapter supports OpenAI. Sequential batches and model-group comparisons are implemented; additional providers, richer observation playback, public publishing and measurement computation remain on the roadmap. Tests use simulated providers; a live paid inference run is a separate validation step.
 
+## Analyze saved runs
+
+```sh
+npm run runs:analyze
+```
+
+This reads terminal API runs from `.data/runs/` and writes `summary.md` and `report.json` into a new timestamped `.data/analysis/` folder. It runs offline, leaves saved works untouched, skips active records, and reports unreadable records separately. Use `-- --runs DIRECTORY --out NEW_DIRECTORY` to choose other locations; existing output folders are never overwritten. Exit code 2 means unreadable records or detected record-consistency issues.
+
+The report separates proposed and accepted actions, rejected batches, decision notes, observations, completion reviews, and usage completeness. It checks recorded event relationships and referenced asset hashes, and flags differing material packs or protocols before comparison. These are observable behavior and record checks, not creativity scores or verification of a model's explanations.
+
 ## Bundled source collection
 
 The app includes **21 bundled source images**: the original three plus 18 natural-history plates, archival photographs, a portrait, a still life, maps, lettering, textile designs, and mechanical diagrams. New installations load them automatically. A fresh New run draft draws six images from the available collection, or all available images when fewer than six exist. Existing saved selections become pinned images when first opened in the new picker.
