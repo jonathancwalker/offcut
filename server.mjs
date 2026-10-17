@@ -11,6 +11,7 @@ import { createBatchManager } from './lib/batches.mjs';
 import { createArchiveCatalog } from './lib/archives.mjs';
 import { createGIFExporter } from './lib/gif.mjs';
 import { createMaterialCatalog } from './lib/material-catalog.mjs';
+import { acquireDataRoot, resolveDataRoot } from './lib/data-root.mjs';
 import { normalizeMaterialSelection, drawMaterialIds } from './public/material-selection.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
@@ -189,7 +190,13 @@ export const API_HELP = {
 };
 
 /** Construct the local app without binding a port (also used by integration tests). */
-export async function createApp({ publicDir = join(ROOT, 'public'), dataDir = join(ROOT, '.data'), initialSources, persist = true, logger = console, providerRegistry = createProviderRegistry() } = {}) {
+export async function createApp({ publicDir = join(ROOT, 'public'), dataDir, initialSources, persist = true, logger = console, providerRegistry = createProviderRegistry() } = {}) {
+  dataDir = resolveDataRoot({ dataDir, fallback: join(ROOT, '.data') });
+  const dataRoot = await acquireDataRoot(dataDir);
+  let runs;
+  let batches;
+  let gifs;
+  try {
   const sessionPath = join(dataDir, 'session.json');
   let project;
   let states;
@@ -210,11 +217,11 @@ export async function createApp({ publicDir = join(ROOT, 'public'), dataDir = jo
     project = makeProject(sources);
     states = reconstruct(project);
   }
-  const runs = await createRunManager({ dataDir: join(dataDir, 'runs'), providerFactory: id => providerRegistry.capture(id) });
+  runs = await createRunManager({ dataDir: join(dataDir, 'runs'), providerFactory: id => providerRegistry.capture(id) });
   const materials = createMaterialCatalog({ directory: join(dataDir, 'source-library') });
-  const batches = await createBatchManager({ dataDir: join(dataDir, 'batches'), runs, materials, getInventory: () => clone(project.sources), providerFactory: id => providerRegistry.capture(id) });
+  batches = await createBatchManager({ dataDir: join(dataDir, 'batches'), runs, materials, getInventory: () => clone(project.sources), providerFactory: id => providerRegistry.capture(id) });
   const archives = createArchiveCatalog();
-  const gifs = createGIFExporter();
+  gifs = createGIFExporter();
   async function sendGIF(response, url, catalog, id) {
     if (url.searchParams.size) fail('GIF export uses the saved playback and does not accept query options.');
     const record = await catalog.get(id);
@@ -519,30 +526,51 @@ export async function createApp({ publicDir = join(ROOT, 'public'), dataDir = jo
   server.requestTimeout = 30_000;
   server.headersTimeout = 15_000;
   let closing;
-  return { server, getProject: () => clone(project), getState: () => clone(states[project.cursor]), close: () => {
+  return { server, dataDir, getProject: () => clone(project), getState: () => clone(states[project.cursor]), close: () => {
     closing ??= (async () => {
-      await batches.close();
-      await runs.close();
-      await gifs.close();
-      if (server.listening) await new Promise((resolveClose, reject) => server.close(error => error ? reject(error) : resolveClose()));
+      let failure;
+      for (const operation of [
+        () => batches.close(),
+        () => runs.close(),
+        () => gifs.close(),
+        () => server.listening ? new Promise((resolveClose, reject) => server.close(error => error ? reject(error) : resolveClose())) : undefined,
+      ]) {
+        try { await operation(); } catch (error) { failure ??= error; }
+      }
+      try { await dataRoot.release(); } catch (error) { failure ??= error; }
+      if (failure) throw failure;
     })();
     return closing;
   } };
+  } catch (error) {
+    await batches?.close().catch(() => {});
+    await runs?.close().catch(() => {});
+    await gifs?.close().catch(() => {});
+    await dataRoot.release().catch(releaseError => { error.releaseError = releaseError; });
+    throw error;
+  }
 }
 
 export async function startServer(options = {}) {
   const port = options.port ?? Number(process.env.PORT || 4317);
   if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error('PORT must be a valid port number.');
-  const app = await createApp(options);
-  await new Promise((resolveListen, reject) => {
-    app.server.once('error', reject);
-    app.server.listen(port, '127.0.0.1', resolveListen);
-  });
-  return app;
+  const dataDir = resolveDataRoot({ dataDir: options.dataDir, environmentDataDir: process.env.OFFCUT_DATA_DIR, fallback: join(ROOT, '.data') });
+  const app = await createApp({ ...options, dataDir });
+  try {
+    await new Promise((resolveListen, reject) => {
+      app.server.once('error', reject);
+      app.server.listen(port, '127.0.0.1', resolveListen);
+    });
+    return app;
+  } catch (error) {
+    await app.close().catch(closeError => { error.closeError = closeError; });
+    throw error;
+  }
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   startServer().then(app => {
+    console.log(`Offcut data: ${app.dataDir}`);
     console.log(`Offcut is ready at http://127.0.0.1:${app.server.address().port}`);
     const shutdown = () => app.close().then(() => process.exit(0));
     process.on('SIGINT', shutdown);

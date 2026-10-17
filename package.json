@@ -8,6 +8,8 @@
     "start": "node server.mjs",
     "test": "node --test tests/*.test.mjs",
     "runs:analyze": "node scripts/analyze-runs.mjs",
+    "data:backup": "node scripts/backup-data.mjs",
+    "data:recover-lock": "node scripts/recover-data-lock.mjs",
     "sources:import": "node scripts/import-source-pack.mjs",
     "sources:collect": "node scripts/collect-sources.mjs"
   },
