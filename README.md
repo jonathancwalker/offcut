@@ -31,6 +31,24 @@ The home page is the **Library**. It includes recorded model runs and three arch
 
 The task stays open: create an original collage from the supplied material, choose its subject and composition, and supply a title and short statement. There is no target image or editable creative prompt. The user chooses the model, source material, and limits; the model makes the work.
 
+## Run a comparative Study
+
+Open **Studies** and choose **New study**. A Study freezes an exact matrix of model routes, prompts, ordered source packs, repetitions, limits, source bytes, and execution order before any provider request. The setup screen previews the resolved cells and conservative allowance forecast before freeze and start. Studies run cells sequentially so one local writer and one provider request path remain authoritative; failures, limits, rejected actions, and not-run cells stay in the denominator.
+
+Use a small calibration Study first. Primary collection is blocked until every selected model route has completed calibration on a different material pack. For the proposed class experiment, freeze explicit Sol, Astra, and Luna API routes, two prompt conditions, reviewed primary packs, and repeated runs. The current adapter supports OpenAI Responses models with image input; model IDs must be entered exactly and availability still depends on the connected API key.
+
+Completed Studies appear at `/studies.html`. Review uses randomized opaque work IDs and three append-only stages: judge the final image, save that reading, reveal the frozen sources, save again, then reveal the requested/returned model and recorded trajectory. The trajectory contains model-authored output, decision notes, proposed and accepted actions, rejections, final-review evidence, and termination. These records describe observable behavior and model-authored explanations; they do not expose private chain-of-thought or prove that a stated reason caused an action.
+
+After the server is stopped, create the offline report and portable exhibit:
+
+```sh
+npm run studies:analyze -- --data /absolute/data/root --study STUDY_ID --out /new/report/directory
+npm run studies:export -- --data /absolute/data/root --study STUDY_ID --out /new/export/directory --analysis /new/report/directory --annotations /absolute/data/root/annotations
+npm run studies:verify -- --export /new/export/directory
+```
+
+Analysis preserves every planned cell and reports record integrity, outcomes, costs, note availability, rejected-batch recovery, action mix, alpha-weighted canvas coverage, visible material contribution, source breadth, and within-pack material overlap. The export is a static provider-free exhibit containing frozen inputs, final images, replay projects, trajectories, annotations, reports, and checksums. See [Study metrics](docs/STUDY_METRICS.md), [the Study plan contract](docs/STUDY_PLANS.md), and [the export runbook](docs/STUDY_RUNBOOK.md).
+
 For a series, set a run count beside the model or **Add another model** with its own count. Choose **Explore** for independent draws or **Compare models** for matching image sets by run number. Keep the same table throughout, draw fresh images, or hold pins fixed while drawing fresh extras. **Review runs** shows each planned set and the total turn allowance before launch. Batches run sequentially; their own page keeps model groups, frozen materials, outcomes and links to playback. Library includes batch history and filtering. [Batch behavior and API](docs/BATCHES.md) covers limits, cancellation and recovery.
 
 | Budget | Fragments | Accepted actions | Model turns | Time limit | Output tokens per turn |
@@ -75,7 +93,7 @@ The study scheduler integration is intentionally narrow: obtain `campaigns.guard
 
 A cancelled or failed request may still be billed, and incomplete usage is labeled. Provider network failures stop the run without automatic retries. Retrying an uncertain launch uses the same request identity to avoid creating a second run; it does not repeat model calls within an existing run. Malformed or invalid action batches remain recorded and can be corrected within the remaining turn budget. Restarting the server marks unfinished runs interrupted; it does not automatically resume paid requests.
 
-The first adapter supports OpenAI. Sequential batches and model-group comparisons are implemented; additional providers, richer observation playback, public publishing and measurement computation remain on the roadmap. Tests use simulated providers; a live paid inference run is a separate validation step.
+The first adapter supports OpenAI. Sequential batches, frozen Studies, staged researcher coding, offline measurements, and verified static exports are implemented. Additional providers, a public gallery, and aggregate statistical visualization remain on the roadmap. Tests use simulated providers; a live paid inference run is a separate validation step.
 
 ## Analyze saved runs
 
@@ -159,6 +177,11 @@ lib/gif.mjs         Bounded playback GIF rendering and cancellable export proces
 lib/runs.mjs        Isolated model loop, observations, durable events and recovery
 lib/study-budget.mjs Durable campaign receipts, per-request reservations and reconciliation
 lib/model-rates.mjs Reviewed exact-route rates and conservative request estimators
+lib/studies.mjs     Sequential frozen-matrix scheduler and recovery
+lib/study-store.mjs Immutable Study manifests, source bytes, and state
+lib/study-analysis.mjs Offline integrity checks and composition measurements
+lib/study-annotations.mjs Append-only staged researcher coding
+lib/study-export.mjs Portable static exhibit creation and verification
 lib/archives.mjs    Read-only replay of the three archived works
 lib/providers.mjs   Private provider connections and OpenAI Responses adapter
 server.mjs          Local HTTP API and persistent action history
