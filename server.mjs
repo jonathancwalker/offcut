@@ -181,6 +181,11 @@ export const API_HELP = {
     'GET /api/studies/:id': 'Inspect one immutable Study manifest and current state.',
     'GET /api/studies/:id/annotations': 'Read the blinded, opaque annotation slots and saved annotation versions for a Study.',
     'POST /api/studies/:id/annotations': 'Append one stage-separated researcher annotation. Supply displayId and expectedRevision; stale revisions return 409.',
+    'GET /api/studies/:id/review': 'List opaque review cards without cell, model, source, run, or status identity fields.',
+    'GET /api/studies/:id/review/:displayId': 'Read one stage-gated review card. Identity and status fields appear only after the corresponding reveal stage is saved.',
+    'GET /api/studies/:id/review/:displayId/image': 'Read a final image through an opaque display ID.',
+    'GET /api/studies/:id/review/:displayId/sources/:index': 'Read a frozen source through an opaque display ID after sources are revealed.',
+    'GET /api/studies/:id/review/:displayId/trace': 'Read requested/returned model and cell status through an opaque display ID after trace is revealed.',
     'GET /api/studies/:id/sources/:sourceId': 'Read source bytes frozen into one Study manifest.',
     'POST /api/studies/:id/start': 'Start a ready frozen Study with {clientRequestId,manifestHash} after admission checks.',
     'POST /api/studies/:id/pause': 'Finish the current cell, then pause before launching another.',
@@ -247,7 +252,7 @@ export async function createApp({ publicDir = join(ROOT, 'public'), dataDir, ini
   runs = await createRunManager({ dataDir: join(dataDir, 'runs'), providerFactory: id => providerRegistry.capture(id) });
   const materials = createMaterialCatalog({ directory: join(dataDir, 'source-library') });
   studyStore = await createStudyStore({ dataDir: join(dataDir, 'studies'), materials, getInventory: () => clone(project.sources), campaigns });
-  annotationStore = await createStudyAnnotationStore({ dataDir: join(dataDir, 'annotations'), studyStore });
+  annotationStore = await createStudyAnnotationStore({ dataDir: join(dataDir, 'annotations'), studyStore, runs });
   batches = await createBatchManager({ dataDir: join(dataDir, 'batches'), runs, materials, getInventory: () => clone(project.sources), providerFactory: id => providerRegistry.capture(id) });
   studies = await createStudyManager({
     store: studyStore, runs, campaigns,
@@ -366,6 +371,30 @@ export async function createApp({ publicDir = join(ROOT, 'public'), dataDir, ini
           return sendJSON(response, 201, annotation);
         }
         fail('Method not allowed.', 405);
+      }
+      const reviewListRoute = /^\/api\/studies\/(study-[a-f0-9-]{36})\/review$/.exec(path);
+      if (reviewListRoute) {
+        if (request.method !== 'GET') fail('Method not allowed.', 405);
+        return sendJSON(response, 200, { review: await annotationStore.reviewList(reviewListRoute[1]) });
+      }
+      const reviewRoute = /^\/api\/studies\/(study-[a-f0-9-]{36})\/review\/(view-[a-z0-9-]{20,80})(?:(\/image)|(\/trace)|(\/sources\/(\d+)))?$/.exec(path);
+      if (reviewRoute) {
+        if (request.method !== 'GET') fail('Method not allowed.', 405);
+        const [, id, displayId, image, trace, sourcePath, sourceIndex] = reviewRoute;
+        if (image) {
+          const rendered = await renderPNG(await annotationStore.reviewImage(id, displayId));
+          response.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'no-store' });
+          return response.end(rendered);
+        }
+        if (sourcePath) {
+          const { bytes, mime } = await annotationStore.reviewSource(id, displayId, Number(sourceIndex), Number(url.searchParams.get('stage')));
+          response.writeHead(200, { 'Content-Type': mime, 'Content-Length': bytes.length, 'Cache-Control': 'no-store' });
+          return response.end(bytes);
+        }
+        const requestedStage = url.searchParams.has('stage') ? Number(url.searchParams.get('stage')) : undefined;
+        const result = await annotationStore.review(id, displayId, requestedStage);
+        if (trace && !result.trace) fail('Trace is unavailable until trace is revealed.', 409, 'REVIEW_STAGE_CONFLICT');
+        return sendJSON(response, 200, trace ? { trace: result.trace } : { review: result });
       }
       if (path.startsWith('/api/studies/')) {
         const studyRoute = /^\/api\/studies\/(study-[a-f0-9-]{36})(?:(?:\/sources\/([a-zA-Z0-9_-]{1,100}))|\/(start|pause|resume|stop|close))?$/.exec(path);
