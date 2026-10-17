@@ -13,6 +13,8 @@ import { createGIFExporter } from './lib/gif.mjs';
 import { createMaterialCatalog } from './lib/material-catalog.mjs';
 import { acquireDataRoot, resolveDataRoot } from './lib/data-root.mjs';
 import { normalizeMaterialSelection, drawMaterialIds } from './public/material-selection.mjs';
+import { createCampaignManager } from './lib/study-budget.mjs';
+import { listRateSnapshots } from './lib/model-rates.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const MAX_BODY_BYTES = 40 * 1024 * 1024;
@@ -165,6 +167,11 @@ export const API_HELP = {
     'GET /api/project': 'Download the full portable project, including sources and action history.',
     'POST /api/project': 'Import a previously exported project. Every action is replayed and checked before the current worktable is replaced.',
     'GET /api/providers': 'List available provider connections without exposing API keys.',
+    'GET /api/study-rates': 'List reviewed server-owned model-rate and request-estimator snapshots. Browser requests cannot override these rules.',
+    'POST /api/campaigns': 'Create an immutable shared Study allowance with {clientRequestId,limitMicros,rateSnapshotId}. Amounts are integer USD microdollars.',
+    'GET /api/campaigns': 'List safe Study allowance summaries with accounted, reserved, uncertain, and available amounts.',
+    'GET /api/campaigns/:id': 'Inspect one Study allowance and its reviewed rate snapshot.',
+    'POST /api/campaigns/:id/reconcile': 'Resolve one uncertain dispatched reservation after checking billing, using {clientRequestId,reservationId,chargeMicros,evidenceNote}.',
     'POST /api/runs': 'Start an isolated blank run. Supply provider, model, prompt and bounded limits. sourceIds chooses 1–24 images from the combined catalog in exact order, with matching sourceHashes. Optional materialSelection records pinned IDs, a deterministic random count/seed, candidate IDs, algorithm and reviewed catalog snapshot; it must reproduce the submitted sourceIds. Omitted sourceIds uses the studio inventory. UUID clientRequestId durably deduplicates identical launches, including after restart or catalog changes; changed settings with that identifier return 409.',
     'GET /api/runs': 'List saved experiments and their progress.',
     'GET /api/runs/:id/events': 'Read observations, requests, returned model output, batch results and termination events.',
@@ -196,6 +203,7 @@ export async function createApp({ publicDir = join(ROOT, 'public'), dataDir, ini
   let runs;
   let batches;
   let gifs;
+  let campaigns;
   try {
   const sessionPath = join(dataDir, 'session.json');
   let project;
@@ -217,6 +225,7 @@ export async function createApp({ publicDir = join(ROOT, 'public'), dataDir, ini
     project = makeProject(sources);
     states = reconstruct(project);
   }
+  campaigns = await createCampaignManager({ dataDir: join(dataDir, 'campaigns') });
   runs = await createRunManager({ dataDir: join(dataDir, 'runs'), providerFactory: id => providerRegistry.capture(id) });
   const materials = createMaterialCatalog({ directory: join(dataDir, 'source-library') });
   batches = await createBatchManager({ dataDir: join(dataDir, 'batches'), runs, materials, getInventory: () => clone(project.sources), providerFactory: id => providerRegistry.capture(id) });
@@ -286,6 +295,26 @@ export async function createApp({ publicDir = join(ROOT, 'public'), dataDir, ini
       checkOrigin(request, server);
       const url = new URL(request.url, 'http://127.0.0.1');
       const path = url.pathname;
+      if (request.method === 'GET' && path === '/api/study-rates') return sendJSON(response, 200, { defaultLimitMicros: 50_000_000, rateSnapshots: listRateSnapshots() });
+      if (path === '/api/campaigns') {
+        if (request.method === 'GET') return sendJSON(response, 200, { campaigns: campaigns.list() });
+        if (request.method === 'POST') {
+          const result = await campaigns.create(await readJSON(request));
+          return sendJSON(response, result.created ? 201 : 200, { campaign: result.campaign });
+        }
+        fail('Method not allowed.', 405);
+      }
+      if (path.startsWith('/api/campaigns/')) {
+        const campaignRoute = /^\/api\/campaigns\/(campaign-[a-f0-9-]{36})(?:\/(reconcile))?$/.exec(path);
+        if (!campaignRoute) fail('Campaign not found.', 404);
+        const [, id, action] = campaignRoute;
+        if (action === 'reconcile') {
+          if (request.method !== 'POST') fail('Method not allowed.', 405);
+          return sendJSON(response, 200, { campaign: await campaigns.reconcile(id, await readJSON(request)) });
+        }
+        if (request.method !== 'GET') fail('Method not allowed.', 405);
+        return sendJSON(response, 200, { campaign: campaigns.get(id) });
+      }
       if (request.method === 'GET' && path === '/api/providers') return sendJSON(response, 200, providerRegistry.list());
       if (request.method === 'GET' && path === '/api/source-catalog') {
         const catalog = await materials.list(project.sources);
@@ -521,7 +550,7 @@ export async function createApp({ publicDir = join(ROOT, 'public'), dataDir, ini
       const status = error.status || (validationCodes.has(error.code) ? 400 : 500);
       // Domain validation errors are safe, useful feedback for both humans and agents.
       if (status >= 500) logger.error?.(error);
-      sendJSON(response, status, { error: status === 504 ? 'GIF export took too long. Try again.' : status >= 500 && error.code !== 'MATERIAL_CATALOG_INVALID' ? 'The worktable could not complete this request. Check the local server for details.' : error.message || 'The request could not be completed.' });
+      sendJSON(response, status, { error: status === 504 ? 'GIF export took too long. Try again.' : status >= 500 && error.code !== 'MATERIAL_CATALOG_INVALID' ? 'The worktable could not complete this request. Check the local server for details.' : error.message || 'The request could not be completed.', ...(typeof error.code === 'string' ? { code: error.code } : {}) });
     }
   });
   server.requestTimeout = 30_000;

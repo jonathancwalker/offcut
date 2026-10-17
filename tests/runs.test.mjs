@@ -16,14 +16,20 @@ const describe = { type: 'describe', title: 'A small beginning', statement: 'A p
 const study = { id: 'study-11111111-1111-4111-8111-111111111111', manifestHash: 'a'.repeat(64), cellId: `cell-${'b'.repeat(64)}`, campaignId: 'campaign-22222222-2222-4222-8222-222222222222' };
 const output = (actions = [], done = false, decision_note = 'Try this arrangement.') => ({ text: JSON.stringify({ decision_note, actions, done }), raw: { id: 'response-test', status: 'completed' }, usage: { inputTokens: 20, outputTokens: 10, totalTokens: 30 }, responseId: 'response-test', model: 'test-vision-pinned' });
 const deferred = () => { let resolve, reject; const promise = new Promise((a, b) => { resolve = a; reject = b; }); return { promise, resolve, reject }; };
+const studyGuard = (onReserve = async () => {}) => ({
+  async reserve(entry) { await onReserve(entry); return { reservationId: `reservation-${entry.turn}` }; },
+  async markDispatching() {},
+  async settle() {},
+  async releaseUndispatched() {},
+});
 
-async function setup(t, generate, { requestGuard } = {}) {
+async function setup(t, generate) {
   const dataDir = await mkdtemp(join(tmpdir(), 'offcut-runs-'));
   const bytes = await getSharp()({ create: { width: 100, height: 100, channels: 3, background: '#339966' } }).png().toBuffer();
   const source = { id: 'page', name: 'A page', width: 100, height: 100, dataUrl: `data:image/png;base64,${bytes.toString('base64')}`, credit: 'Test fixture', url: 'https://example.org/page', license: 'CC0' };
   let factoryCalls = 0;
   const providerFactory = () => { factoryCalls++; return { generate, privateKey: 'sk-private-test-only', metadata: { adapter: 'test', endpoint: 'https://api.openai.com/v1/responses', imageDetail: 'high', store: false, apiKey: 'sk-metadata-secret' } }; };
-  const manager = await createRunManager({ dataDir, providerFactory, requestGuard });
+  const manager = await createRunManager({ dataDir, providerFactory });
   t.after(async () => { await manager.close(); await rm(dataDir, { recursive: true, force: true }); });
   return { manager, dataDir, source, bytes, providerFactory, factoryCalls: () => factoryCalls };
 }
@@ -31,7 +37,10 @@ async function setup(t, generate, { requestGuard } = {}) {
 async function finished(manager, id) {
   for (let count = 0; count < 1000; count++) {
     const run = manager.get(id);
-    if (run.status !== 'running') return run;
+    if (run.status !== 'running') {
+      await manager.wait(id);
+      return manager.get(id);
+    }
     await new Promise(resolve => setTimeout(resolve, 5));
   }
   throw new Error('The test run did not finish.');
@@ -588,15 +597,15 @@ test('study provenance is normalized, mutually exclusive with batches, and requi
 test('a study run uses persisted v4 instructions, invokes its guard per request, and retains provenance through export and restart', async t => {
   const guarded = [], requests = [];
   let calls = 0;
-  const requestGuard = async entry => guarded.push(entry);
+  const requestGuard = studyGuard(async entry => guarded.push(entry));
   const { manager, source, dataDir, providerFactory } = await setup(t, async request => {
     requests.push(request);
     calls++;
     if (calls === 1) return output([], true, '');
     if (calls === 2) return output([{ type: 'describe', title: 'Written in stages' }], true, '');
     return output([{ type: 'describe', statement: 'Both required fields were explicitly accepted.' }], true, '');
-  }, { requestGuard });
-  const run = await manager.start({ spec: { ...spec, maxTurns: 3 }, sources: [source], study });
+  });
+  const run = await manager.start({ spec: { ...spec, maxTurns: 3 }, sources: [source], study, requestGuard });
   const end = await manager.wait(run.id);
   assert.equal(end.status, 'completed');
   assert.deepEqual(end.study, study);
@@ -609,7 +618,7 @@ test('a study run uses persisted v4 instructions, invokes its guard per request,
   assert.equal(calls, 3);
   assert.equal(guarded.length, 3);
   assert.deepEqual(guarded.map(entry => entry.study), [study, study, study]);
-  assert.deepEqual(guarded.map(entry => entry.requestId), [`${run.id}:1`, `${run.id}:2`, `${run.id}:3`]);
+  assert.deepEqual(guarded.map(entry => entry.requestId), [`${run.id}:turn:1`, `${run.id}:turn:2`, `${run.id}:turn:3`]);
   for (const request of requests) {
     const serialized = JSON.stringify(request);
     for (const value of Object.values(study)) assert.ok(!serialized.includes(value));
@@ -622,7 +631,7 @@ test('a study run uses persisted v4 instructions, invokes its guard per request,
   assert.deepEqual(started.policy, end.policy);
   assert.deepEqual((await manager.bundle(run.id)).run.study, study);
   await manager.close();
-  const restarted = await createRunManager({ dataDir, providerFactory, requestGuard });
+  const restarted = await createRunManager({ dataDir, providerFactory });
   t.after(() => restarted.close());
   assert.deepEqual(restarted.get(run.id).study, study);
   assert.deepEqual(restarted.get(run.id).policy, end.policy);
@@ -632,8 +641,8 @@ test('a study run uses persisted v4 instructions, invokes its guard per request,
 test('study completion commits valid edits while deferring for writing and the latest canvas within existing limits', async t => {
   await t.test('description plus final visual edits requires another observation', async t => {
     let calls = 0;
-    const { manager, source } = await setup(t, async () => ++calls === 1 ? output([describe, cut, place], true) : output([], true), { requestGuard: async () => {} });
-    const run = await manager.start({ spec, sources: [source], study });
+    const { manager, source } = await setup(t, async () => ++calls === 1 ? output([describe, cut, place], true) : output([], true));
+    const run = await manager.start({ spec, sources: [source], study, requestGuard: studyGuard() });
     const end = await manager.wait(run.id);
     assert.equal(end.status, 'completed');
     assert.equal(calls, 2);
@@ -648,8 +657,8 @@ test('study completion commits valid edits while deferring for writing and the l
       calls++;
       feedback.push(JSON.parse(request.messages.at(-1).text).feedback);
       return calls === 1 ? output([cut, place], true) : output([], true);
-    }, { requestGuard: async () => {} });
-    const run = await manager.start({ spec: { ...spec, maxTurns: 2 }, sources: [source], study });
+    });
+    const run = await manager.start({ spec: { ...spec, maxTurns: 2 }, sources: [source], study, requestGuard: studyGuard() });
     const end = await manager.wait(run.id);
     assert.equal(end.status, 'limit_reached');
     assert.equal(end.terminationReason, 'turn_limit');
@@ -666,8 +675,8 @@ test('study completion commits valid edits while deferring for writing and the l
 
   await t.test('exhausting actions with missing writing adds no review call', async t => {
     let calls = 0;
-    const { manager, source } = await setup(t, async () => { calls++; return output([cut, place], true); }, { requestGuard: async () => {} });
-    const run = await manager.start({ spec: { ...spec, maxTurns: 4, maxActions: 2 }, sources: [source], study });
+    const { manager, source } = await setup(t, async () => { calls++; return output([cut, place], true); });
+    const run = await manager.start({ spec: { ...spec, maxTurns: 4, maxActions: 2 }, sources: [source], study, requestGuard: studyGuard() });
     const end = await manager.wait(run.id);
     assert.equal(end.status, 'limit_reached');
     assert.equal(end.terminationReason, 'action_limit');
@@ -683,9 +692,9 @@ test('v3 and v4 apply the same accepted actions to identical pixels', async t =>
     return async () => ++calls === 1 ? output([cut, place, describe], true) : output([], true);
   };
   const ordinaryFixture = await setup(t, responses());
-  const studyFixture = await setup(t, responses(), { requestGuard: async () => {} });
+  const studyFixture = await setup(t, responses());
   const ordinary = await ordinaryFixture.manager.start({ spec, sources: [ordinaryFixture.source] });
-  const studied = await studyFixture.manager.start({ spec, sources: [studyFixture.source], study });
+  const studied = await studyFixture.manager.start({ spec, sources: [studyFixture.source], study, requestGuard: studyGuard() });
   const [ordinaryEnd, studyEnd] = await Promise.all([ordinaryFixture.manager.wait(ordinary.id), studyFixture.manager.wait(studied.id)]);
   assert.equal(ordinaryEnd.policy.version, 3);
   assert.equal(studyEnd.policy.version, 4);
@@ -946,4 +955,91 @@ test('legacy run recovery removes invented batch labels from a stale summary', a
   const recovered = await createRunManager({ dataDir, providerFactory });
   t.after(() => recovered.close());
   assert.equal(Object.hasOwn(recovered.get(run.id), 'batch'), false);
+});
+
+test('a denied spending reservation makes no transport call and consumes no requested turn or rejection', async t => {
+  let calls = 0, dispatches = 0, settlements = 0, releases = 0;
+  const { manager, source } = await setup(t, async () => { calls++; return output([], true); });
+  const requestGuard = {
+    async reserve() { throw Object.assign(new Error('Allowance exhausted.'), { code: 'STUDY_BUDGET_DENIED', status: 409 }); },
+    async markDispatching() { dispatches++; },
+    async settle() { settlements++; },
+    async releaseUndispatched() { releases++; },
+  };
+  const run = await manager.start({ spec, sources: [source], study, requestGuard });
+  const end = await finished(manager, run.id);
+  assert.equal(end.status, 'limit_reached');
+  assert.equal(end.terminationReason, 'study_budget');
+  assert.equal(end.turns, 0);
+  assert.equal(end.rejectedBatches, 0);
+  assert.equal(calls, 0);
+  assert.equal(dispatches, 0);
+  assert.equal(settlements, 0);
+  assert.equal(releases, 0);
+  const events = manager.events(run.id);
+  assert.equal(events.filter(event => event.type === 'budget_denied').length, 1);
+  assert.equal(events.filter(event => event.type === 'request').length, 0);
+});
+
+test('guarded requests settle valid detailed usage before malformed output is rejected', async t => {
+  const order = [];
+  const { manager, source } = await setup(t, async () => {
+    order.push('transport');
+    return { ...output(), text: '{malformed', usage: { inputTokens: 20, outputTokens: 10, totalTokens: 30, inputTokensDetails: { cachedTokens: 5 }, outputTokensDetails: { reasoningTokens: 4 } } };
+  });
+  const requestGuard = {
+    async reserve(input) { order.push('reserve'); assert.match(input.requestId, /:turn:1$/); return { reservationId: 'reservation-test' }; },
+    async markDispatching() { order.push('dispatching'); },
+    async settle(input) { order.push('settle'); assert.equal(input.usage.outputTokensDetails.reasoningTokens, 4); },
+    async releaseUndispatched() { order.push('release'); },
+  };
+  const run = await manager.start({ spec: { ...spec, maxTurns: 1 }, sources: [source], study, requestGuard });
+  const end = await finished(manager, run.id);
+  assert.equal(end.status, 'limit_reached');
+  assert.equal(end.turns, 1);
+  assert.equal(end.rejectedBatches, 1);
+  assert.deepEqual(order, ['reserve', 'dispatching', 'transport', 'settle']);
+  const modelOutput = manager.events(run.id).find(event => event.type === 'model_output');
+  assert.deepEqual(modelOutput.usage.inputTokensDetails, { cachedTokens: 5 });
+  assert.deepEqual(modelOutput.usage.outputTokensDetails, { reasoningTokens: 4 });
+});
+
+test('guarded requests never turn missing provider usage into a zero-cost settlement', async t => {
+  let settlement;
+  const { manager, source } = await setup(t, async () => ({ ...output(), usage: { inputTokens: null, outputTokens: null, totalTokens: null } }));
+  const requestGuard = {
+    async reserve() { return { reservationId: 'reservation-test' }; },
+    async markDispatching() {},
+    async settle(input) {
+      settlement = input;
+      throw Object.assign(new Error('Usage is unresolved.'), { code: 'UNRESOLVED_USAGE' });
+    },
+    async releaseUndispatched() { assert.fail('A dispatched reservation cannot be released.'); },
+  };
+  const run = await manager.start({ spec: { ...spec, maxTurns: 1 }, sources: [source], study, requestGuard });
+  const end = await finished(manager, run.id);
+  assert.equal(end.status, 'failed');
+  assert.equal(end.usageIncomplete, true);
+  assert.deepEqual(settlement.usage, { inputTokens: null, outputTokens: null, totalTokens: null });
+  const modelOutput = manager.events(run.id).find(event => event.type === 'model_output');
+  assert.deepEqual(modelOutput.usage, { inputTokens: 0, outputTokens: 0, totalTokens: 0 });
+});
+
+test('cancellation after dispatch keeps a guarded reservation unresolved and never releases it', async t => {
+  const entered = deferred();
+  let releases = 0, settlements = 0;
+  const { manager, source } = await setup(t, async () => { entered.resolve(); return new Promise(() => {}); });
+  const requestGuard = {
+    async reserve() { return { reservationId: 'reservation-test' }; },
+    async markDispatching() {},
+    async settle() { settlements++; },
+    async releaseUndispatched() { releases++; },
+  };
+  const run = await manager.start({ spec, sources: [source], study, requestGuard });
+  await entered.promise;
+  const stopped = await manager.stop(run.id);
+  assert.equal(stopped.status, 'stopped');
+  assert.equal(stopped.usageIncomplete, true);
+  assert.equal(settlements, 0);
+  assert.equal(releases, 0);
 });

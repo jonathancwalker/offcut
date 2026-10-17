@@ -69,7 +69,11 @@ The destination must be new and outside the source. The command copies durable O
 
 After an unclean shutdown, a lock may remain. `npm run data:recover-lock -- --data /absolute/path/to/Offcut-data` removes it from service only when the recorded owner is this host and its PID is absent; the stale lock is renamed and preserved. Offcut never removes locks based on age. If ownership cannot be proved, recovery fails.
 
-Limits cover model turns, accepted actions, fragments, output tokens per request and elapsed time, plus a fixed textual-context ceiling. Usage is recorded when returned. **Dollar estimates and spending caps are not implemented yet**; a cancelled or failed request may still be billed, and incomplete usage is labeled. Provider network failures stop the run without automatic retries. Retrying an uncertain launch uses the same request identity to avoid creating a second run; it does not repeat model calls within an existing run. Malformed or invalid action batches remain recorded and can be corrected within the remaining turn budget. Restarting the server marks unfinished runs interrupted; it does not automatically resume paid requests.
+Limits cover model turns, accepted actions, fragments, output tokens per request and elapsed time, plus a fixed textual-context ceiling. Usage is recorded when returned. Study campaigns add a durable **Study allowance** in integer USD microdollars. `GET /api/study-rates` returns server-owned, reviewed rate and estimator snapshots; `POST /api/campaigns` creates an immutable allowance shared by every study that names it. Campaign detail separates accounted, reserved, uncertain and available amounts. This local allowance is not the provider invoice or an account-wide spend cap.
+
+The study scheduler integration is intentionally narrow: obtain `campaigns.guard(campaignId)` from `lib/study-budget.mjs` and pass it as the trusted `requestGuard` field to `runs.start` together with the PR04 study provenance. Browser `/api/runs` never accepts that field. The runner reserves before committing a request, marks dispatch durably before the provider boundary, and settles valid usage before parsing model output. A denied reservation records `budget_denied`, makes no provider call and consumes no turn. A dispatched request with missing or unpriceable usage remains uncertain until `POST /api/campaigns/:id/reconcile` records operator-checked billing evidence. PR04 should require this injected guard for study runs; ordinary runs and historical batches retain their existing behavior.
+
+A cancelled or failed request may still be billed, and incomplete usage is labeled. Provider network failures stop the run without automatic retries. Retrying an uncertain launch uses the same request identity to avoid creating a second run; it does not repeat model calls within an existing run. Malformed or invalid action batches remain recorded and can be corrected within the remaining turn budget. Restarting the server marks unfinished runs interrupted; it does not automatically resume paid requests.
 
 The first adapter supports OpenAI. Sequential batches and model-group comparisons are implemented; additional providers, richer observation playback, public publishing and measurement computation remain on the roadmap. Tests use simulated providers; a live paid inference run is a separate validation step.
 
@@ -153,6 +157,8 @@ lib/engine.mjs      Pure state transitions and geometry validation
 lib/render.mjs      Source-preserving SVG and PNG rendering
 lib/gif.mjs         Bounded playback GIF rendering and cancellable export process
 lib/runs.mjs        Isolated model loop, observations, durable events and recovery
+lib/study-budget.mjs Durable campaign receipts, per-request reservations and reconciliation
+lib/model-rates.mjs Reviewed exact-route rates and conservative request estimators
 lib/archives.mjs    Read-only replay of the three archived works
 lib/providers.mjs   Private provider connections and OpenAI Responses adapter
 server.mjs          Local HTTP API and persistent action history
