@@ -6,7 +6,7 @@ import { analyzeStudyDirectory, studyRecoveryCSV, studyRunsCSV, studySummaryMark
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
 if (args.includes('--help')) {
-  console.log('Offline analysis of one frozen Offcut Study. No server or model API required.\n\nnpm run studies:analyze -- --study STUDY_ID [--data-root DIRECTORY] [--out NEW_DIRECTORY]\n\nDefaults: read project .data and write a new timestamped .data/study-analysis folder. Existing output folders are never overwritten.');
+  console.log('Offline analysis of one frozen Offcut Study. No server or model API required.\n\nnpm run studies:analyze -- --study STUDY_ID [--data DIRECTORY] [--out NEW_DIRECTORY]\n\nDefaults: read project .data and write a new timestamped .data/study-analysis folder. Existing output folders are never overwritten.');
   process.exit(0);
 }
 
@@ -15,8 +15,8 @@ let studyId;
 let out = resolve(root, '.data/study-analysis', new Date().toISOString().replace(/[:.]/g, '-'));
 for (let index = 0; index < args.length; index++) {
   const flag = args[index], value = args[++index];
-  if (!['--data-root', '--study', '--out'].includes(flag) || !value || value.startsWith('--')) throw new Error('Use --study STUDY_ID and optionally --data-root DIRECTORY and/or --out NEW_DIRECTORY.');
-  if (flag === '--data-root') dataRoot = resolve(value);
+  if (!['--data', '--data-root', '--study', '--out'].includes(flag) || !value || value.startsWith('--')) throw new Error('Use --study STUDY_ID and optionally --data DIRECTORY and/or --out NEW_DIRECTORY.');
+  if (flag === '--data' || flag === '--data-root') dataRoot = resolve(value);
   else if (flag === '--study') studyId = value;
   else out = resolve(value);
 }
