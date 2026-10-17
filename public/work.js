@@ -1,5 +1,6 @@
 import { createState, applyAction, polygonBounds, pieceRings, pieceArea, usablePieceCount } from '/engine.mjs';
 import { createPieceHighlight, outlineForAction } from '/work-highlight.mjs';
+import { actionSummary, traceSelection } from '/run-trace-view.mjs';
 
 const $ = id => document.getElementById(id);
 const pieceHighlight = createPieceHighlight($('work-stage'), $('work-change-outline'));
@@ -14,7 +15,7 @@ function savedPlaybackRate() {
   try { const rate = Number(localStorage.getItem(playbackRateKey)); if (playbackRates.includes(rate)) return rate; } catch { /* Playback also works when storage is unavailable. */ }
   return 2;
 }
-const state = { run:null, project:null, frames:[], fragments:[], step:0, playing:false, playbackRate:savedPlaybackRate(), playbackTimer:null, playbackVersion:0, pollTimer:null, refreshing:false, stopping:false, imageVersion:0, imageReady:Promise.resolve(), clipId:0, notesLoaded:false, notesLoading:false, dialogOpener:null };
+const state = { run:null, project:null, frames:[], fragments:[], trace:null, traceLoaded:false, traceLoading:false, step:0, playing:false, playbackRate:savedPlaybackRate(), playbackTimer:null, playbackVersion:0, pollTimer:null, refreshing:false, stopping:false, imageVersion:0, imageReady:Promise.resolve(), clipId:0, notesLoaded:false, notesLoading:false, dialogOpener:null };
 const statusNames = { running:'Working', completed:'Completed', archived:'Archived', stopped:'Stopped', failed:'Failed', interrupted:'Interrupted', limit_reached:'Limit reached' };
 const terminationMessages = {
   time_limit:'Time limit reached. The saved work and its playback are shown here.',
@@ -167,7 +168,7 @@ function renderModelWriting() {
   const lastStatement = actions.findLast(action => action.type === 'describe' && Object.hasOwn(action,'statement'));
   const content = document.createDocumentFragment();
   if (lastTitle) content.append(writingField('Title',lastTitle.title,'model-title'));
-  if (lastStatement?.statement) content.append(writingField('Statement',lastStatement.statement,'model-statement'));
+  if (lastStatement?.statement) content.append(writingField('Final artist statement',lastStatement.statement,'model-statement'));
   if (!lastTitle && !lastStatement?.statement) content.append(node('p','model-empty','No title or statement supplied.'));
   $('model-writing').replaceChildren(content);
 }
@@ -203,6 +204,7 @@ function renderTerminal() {
   $('download-record').href = `${base}/export`;
   $('download-record').hidden = isArchive;
   $('decision-notes').hidden = isArchive;
+  $('trace-tab').hidden = isArchive;
   const partial = !['completed','archived'].includes(state.run.status);
   $('work-notice').textContent = partial ? terminationMessages[state.run.terminationReason] || 'This run ended before completion. Any saved work is shown here.' : '';
   $('work-notice').hidden = !partial;
@@ -348,12 +350,70 @@ function openMaterial(source,fragment,opener) {
   $('close-material').focus({preventScroll:true});
 }
 function setTab(selected) {
-  for (const name of ['fragments','sources']) {
+  if (selected === 'trace' && isArchive) selected = 'fragments';
+  for (const name of ['fragments','sources','trace']) {
     const active = name === selected;
     $(`${name}-tab`).setAttribute('aria-selected',String(active));
     $(`${name}-tab`).tabIndex = active ? 0 : -1;
     $(`${name}-panel`).hidden = !active;
   }
+  if (selected === 'trace') loadTrace();
+}
+function traceImage(sha256,alt) {
+  if (!sha256) return node('p','trace-missing','Not recorded');
+  const image = node('img'); image.src = `${base}/assets/${sha256}`; image.alt = alt; image.loading = 'lazy'; image.decoding = 'async';
+  return image;
+}
+function selectTraceTurn(index,buttons) {
+  const selected = traceSelection(state.trace,index);
+  if (!selected) return;
+  for (const [buttonIndex,button] of buttons.entries()) button.setAttribute('aria-pressed',String(buttonIndex === index));
+  const detail = node('section','trace-detail');
+  detail.append(node('h3','',`Turn ${number(selected.turn.turn)}`),node('p','trace-evidence',`Events ${Object.values(selected.turn.evidence).filter(Number.isInteger).join(', ') || 'not recorded'}`));
+  const frames = node('div','trace-frames');
+  const observed = node('figure','trace-frame'); observed.append(traceImage(selected.observed?.sha256,`Canvas supplied to the model on turn ${selected.turn.turn}`),node('figcaption','','Observed · exact supplied canvas'));
+  const result = node('figure','trace-frame');
+  if (Number.isInteger(selected.resultStep)) {
+    const image = node('img'); image.src = `${base}/render.png?step=${selected.resultStep}`; image.alt = selected.rejected ? `Canvas unchanged after rejected turn ${selected.turn.turn}` : `Accepted replay state after turn ${selected.turn.turn}`; result.append(image);
+  } else result.append(node('p','trace-missing','Not recorded'));
+  result.append(node('figcaption','',selected.rejected ? 'Result · rejected, canvas unchanged' : 'Result · accepted replay state'));
+  frames.append(observed,result);
+  if (selected.nextObserved) {
+    const next = node('figure','trace-frame'); next.append(traceImage(selected.nextObserved.sha256,'Canvas supplied on the next requested turn'),node('figcaption','','Next observation · exact supplied canvas')); frames.append(next);
+  }
+  const attempt = node('div','trace-attempt'); attempt.append(node('span','model-field-label','Attempted'),node('p','',actionSummary(selected.turn.proposedActions)));
+  if (selected.turn.decisionNote !== null) attempt.append(node('blockquote','trace-note',selected.turn.decisionNote || 'Empty note'));
+  if (selected.rejected) attempt.append(node('p','trace-rejection',[selected.turn.validation.code,selected.turn.validation.error].filter(Boolean).join(' · ') || 'Rejected'));
+  if (Number.isInteger(selected.resultStep)) {
+    const seek = node('button','text-button',`Show result at action ${selected.resultStep} ↗`); seek.type = 'button'; seek.addEventListener('click',() => { stopPlayback(); setStep(selected.resultStep); $('work-stage').scrollIntoView({block:'nearest',behavior:'smooth'}); }); attempt.append(seek);
+  }
+  detail.append(frames,attempt,node('p','trace-caveat','Playback may show action-by-action replay frames between recorded observations. The model did not necessarily receive those intermediate frames.'));
+  $('trace-content').querySelector('.trace-detail')?.remove();
+  $('trace-content').append(detail);
+}
+function renderTrace() {
+  const content = document.createDocumentFragment(), buttons = [];
+  const list = node('div','trace-turns');
+  for (const [index,turn] of state.trace.turns.entries()) {
+    const button = node('button','trace-turn'); button.type = 'button'; button.setAttribute('aria-pressed','false');
+    button.append(node('span','trace-turn-number',`Turn ${number(turn.turn)}`),node('span','trace-turn-flow',`Observed → ${turn.parseStatus === 'parsed' ? 'Attempted' : 'Unparsed'} → ${turn.validation.status === 'accepted' ? 'Accepted' : turn.validation.status === 'rejected' ? 'Rejected' : 'No result'}`));
+    button.addEventListener('click',() => selectTraceTurn(index,buttons)); buttons.push(button); list.append(button);
+  }
+  content.append(list);
+  if (!buttons.length) content.append(node('p','material-empty','No requested model turns were recorded.'));
+  $('trace-content').replaceChildren(content);
+  $('trace-count').textContent = buttons.length ? number(buttons.length) : '';
+  if (buttons.length) selectTraceTurn(0,buttons);
+}
+async function loadTrace() {
+  if (state.traceLoaded || state.traceLoading || !state.project || state.run.status === 'running' || isArchive) return;
+  state.traceLoading = true;
+  $('trace-content').replaceChildren(node('p','material-empty','Loading trace…'));
+  try { state.trace = (await request(`${base}/trace`)).trace; renderTrace(); state.traceLoaded = true; }
+  catch (error) {
+    const retry = node('button','text-button','Try again'); retry.type = 'button'; retry.addEventListener('click',loadTrace);
+    $('trace-content').replaceChildren(node('p','material-empty',error.message),retry);
+  } finally { state.traceLoading = false; }
 }
 async function loadNotes() {
   if (state.notesLoaded || state.notesLoading || !state.project || state.run.status === 'running') return;
@@ -447,12 +507,14 @@ $('stop-work').addEventListener('click',async () => {
   catch (error) { showError(error.message); }
   finally { state.stopping = false; if (state.run?.status === 'running') renderSummary(); }
 });
-for (const name of ['fragments','sources']) {
+for (const name of ['fragments','sources','trace']) {
   $(`${name}-tab`).addEventListener('click',() => setTab(name));
   $(`${name}-tab`).addEventListener('keydown',event => {
     if (!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return;
     event.preventDefault();
-    const selected = event.key === 'Home' ? 'fragments' : event.key === 'End' ? 'sources' : name === 'fragments' ? 'sources' : 'fragments';
+    const names = isArchive ? ['fragments','sources'] : ['fragments','sources','trace'];
+    const index = names.indexOf(name);
+    const selected = event.key === 'Home' ? names[0] : event.key === 'End' ? names.at(-1) : names[(index + (event.key === 'ArrowRight' ? 1 : -1) + names.length) % names.length];
     setTab(selected); $(`${selected}-tab`).focus();
   });
 }

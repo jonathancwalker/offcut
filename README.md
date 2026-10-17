@@ -145,6 +145,8 @@ The browser workflow was also exercised for cutting, dragging, transforms, prove
 
 For the playback outline browser regression, start a separate local server with `PORT=4322 npm start`, then run `node tests/work-playback.browser.mjs` with Playwright installed (or the bundled Codex runtime). It checks A003 geometry, decoded-frame races, reduced motion, responsive alignment, pause/seek/retry and persisted-page restoration, plus unchanged image pixels and saved data. Screenshots and results are written to ignored `test-results/`. Set `OFFCUT_TEST_URL` to use another loopback port.
 
+Run `node tests/work-trace.browser.mjs` for the self-contained attempted-turn trace regression. It starts an isolated temporary server with a simulated provider, verifies on-demand loading, rejected/accepted evidence links, keyboard tabs and the narrow layout, and writes an ignored mobile screenshot to `test-results/`.
+
 ## Project structure
 
 ```text
