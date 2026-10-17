@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#faf9f6"><title>Study — Offcut</title><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/study.css"></head>
+<body class="study-page">
+  <header class="app-header"><a class="brand" href="/" aria-label="Offcut library"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>offcut</a><nav class="app-nav" aria-label="Main navigation"><a class="nav-link" href="/">Library</a><a class="nav-link active" href="/studies.html">Studies</a></nav><div class="header-actions"><a class="secondary-button" href="/studies.html">All studies</a></div></header>
+  <main class="study-main">
+    <header class="study-heading"><div><a class="back-link" href="/studies.html">← Studies</a><h1 id="study-title">Study</h1><p id="study-subtitle" class="study-subtitle"></p></div><div class="study-heading-meta"><span id="study-status" class="study-status"></span><span id="study-progress"></span></div></header>
+    <div id="study-error" class="page-error" role="alert" hidden><span id="study-error-message"></span><button id="retry-study" class="text-button" type="button">Try again</button></div>
+    <p id="study-loading" class="collection-loading" role="status">Opening study…</p>
+    <section id="study-content" hidden><div class="study-notice" role="note"><strong>Researcher coding</strong><span>Read each image first. Sources and trace details appear only after you save the preceding stage.</span></div><div id="study-cards" class="study-cards" aria-label="Study comparison cells"></div></section>
+  </main>
+  <script type="module" src="/study.js"></script>
+</body>
+</html>
