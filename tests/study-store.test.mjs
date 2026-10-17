@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdir, mkdtemp, readFile, readdir, rm, unlink, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, mkdtemp, readFile, readdir, rm, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createStudyStore } from '../lib/study-store.mjs';
@@ -126,4 +126,21 @@ test('rejects a catalog swap during freeze and leaves no visible study', async t
   );
   assert.deepEqual(store.list(), []);
   assert.ok((await readdir(dataDir)).every(name => !name.startsWith('study-')));
+});
+
+test('event snapshots recover stale state and preserve an interrupted final append for review', async t => {
+  const fixture = await setup(t, async () => ({ version: 1 }));
+  const created = await fixture.store.create({ clientRequestId: randomUUID(), draft: draft(), campaignId: 'campaign-test' });
+  const id = created.study.id;
+  const state = created.study.state;
+  state.status = 'paused';
+  state.pauseReason = 'test_pause';
+  await fixture.store.transition(id, { type: 'study_paused', payload: { reason: 'test_pause' } }, state);
+  const dir = join(fixture.dataDir, id);
+  await writeFile(join(dir, 'state.json'), JSON.stringify({ stale: true }));
+  await appendFile(join(dir, 'events.jsonl'), '{"sequence":2,"type":"partial"');
+  const reopened = await createStudyStore({ ...fixture, dataDir: fixture.dataDir });
+  assert.equal(reopened.get(id).state.status, 'paused');
+  assert.equal(reopened.events(id).length, 1);
+  assert.ok((await readdir(dir)).some(name => name.startsWith('events-recovery-')));
 });

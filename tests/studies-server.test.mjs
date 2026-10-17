@@ -18,10 +18,10 @@ async function source() {
 function draft(catalog) {
   const selected = catalog.sources.find(item => item.id === 'study-paper');
   return {
-    version: 1, label: 'Frozen study fixture', kind: 'primary', seed: 72,
+    version: 1, label: 'Frozen study fixture', kind: 'calibration', seed: 72,
     commonBrief: 'Create a collage using only the supplied material.',
     prompts: [{ id: 'self', label: 'Self portrait', text: 'Make a portrait of yourself.' }],
-    models: [{ id: 'route-a', label: 'Route A', provider: 'openai', model: 'fixture.invalid/route-a' }],
+    models: [{ id: 'route-a', label: 'Route A', provider: 'openai', model: 'gpt-5.6-luna' }],
     packs: [{ id: 'pack-a', label: 'Pack A', catalogSnapshot: catalog.snapshot, sourceIds: [selected.id], sourceHashes: { [selected.id]: selected.sha256 } }],
     repetitions: 1,
     profiles: [{ id: 'standard', label: 'Standard', maxTurns: 2, maxActions: 12, maxPieces: 4, maxOutputTokens: 512, maxMinutes: 1 }],
@@ -35,7 +35,14 @@ test('Study HTTP APIs preview and freeze immutable inputs without provider calls
   let transportCalls = 0;
   const launch = () => startServer({
     port: 0, dataDir, persist: false, initialSources: [fixture.record],
-    providerRegistry: createProviderRegistry({ environmentKey: '', fetchImpl: async () => { transportCalls++; throw new Error('provider must remain disconnected'); } }),
+    providerRegistry: createProviderRegistry({ environmentKey: '', fetchImpl: async () => {
+      transportCalls++;
+      return Response.json({
+        id: `response-${transportCalls}`, model: 'gpt-5.6-luna',
+        output: [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify({ decision_note: 'The single source becomes the subject.', actions: [{ type: 'describe', title: 'Calibration', statement: 'A finished calibration work.' }], done: true }) }] }],
+        usage: { input_tokens: 100, output_tokens: 20, total_tokens: 120 },
+      });
+    } }),
   });
   let app = await launch();
   let base = `http://127.0.0.1:${app.server.address().port}`;
@@ -80,14 +87,28 @@ test('Study HTTP APIs preview and freeze immutable inputs without provider calls
   assert.equal(image.response.headers.get('content-type'), 'image/png');
   assert.equal(hash(image.data), hash(fixture.bytes));
   assert.equal((await request(`/api/studies/${id}/sources/missing`)).status, 404);
-  assert.equal((await request(`/api/studies/${id}/start`, {})).status, 404);
   assert.equal(transportCalls, 0);
+
+  await request('/api/providers/openai', { apiKey: 'test-secret-key' });
+  const started = await request(`/api/studies/${id}/start`, { clientRequestId: randomUUID(), manifestHash: created.data.study.manifest.manifestHash });
+  assert.equal(started.status, 200, JSON.stringify(started.data));
+  let finished;
+  for (let attempt = 0; attempt < 100; attempt++) {
+    finished = (await request(`/api/studies/${id}`)).data.study;
+    if (!['running', 'pausing'].includes(finished.status)) break;
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+  assert.equal(finished.status, 'completed', JSON.stringify(finished));
+  assert.equal(finished.state.entries[0].runId.startsWith('run-'), true);
+  assert.ok(transportCalls > 0);
 
   await app.close();
   app = await launch();
   base = `http://127.0.0.1:${app.server.address().port}`;
-  assert.equal((await request(`/api/studies/${id}`)).data.study.status, 'ready');
+  assert.equal((await request(`/api/studies/${id}`)).data.study.status, 'completed');
   const reopenedImage = await request(`/api/studies/${id}/sources/study-paper`);
   assert.equal(hash(reopenedImage.data), hash(fixture.bytes));
-  assert.equal(transportCalls, 0);
+  const callsAfterRestart = transportCalls;
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(transportCalls, callsAfterRestart);
 });

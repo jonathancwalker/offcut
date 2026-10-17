@@ -740,6 +740,12 @@ test('launch metadata is bounded, contains no extra fields, and is saved before 
   assert.deepEqual(persisted.launch, expected);
   assert.deepEqual(manager.get(run.id).launch, expected);
   assert.deepEqual(manager.events(run.id).find(event => event.type === 'run_started').launch, expected);
+  assert.equal((await manager.start({ spec, sources: [source], launch: expected })).id, run.id);
+  assert.equal(manager.findLaunch(expected.clientRequestId).id, run.id);
+  await assert.rejects(
+    manager.start({ spec, sources: [source], launch: { ...expected, requestFingerprint: 'c'.repeat(64) } }),
+    error => error.status === 409 && error.code === 'RECEIPT_CONFLICT',
+  );
   assert.equal(factoryCalls(), 1);
 });
 

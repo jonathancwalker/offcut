@@ -15,6 +15,7 @@ import { acquireDataRoot, resolveDataRoot } from './lib/data-root.mjs';
 import { normalizeMaterialSelection, drawMaterialIds } from './public/material-selection.mjs';
 import { createCampaignManager } from './lib/study-budget.mjs';
 import { createStudyStore } from './lib/study-store.mjs';
+import { createStudyManager } from './lib/studies.mjs';
 import { listRateSnapshots } from './lib/model-rates.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
@@ -178,6 +179,11 @@ export const API_HELP = {
     'GET /api/studies': 'List frozen Study records and their safe progress summaries.',
     'GET /api/studies/:id': 'Inspect one immutable Study manifest and current state.',
     'GET /api/studies/:id/sources/:sourceId': 'Read source bytes frozen into one Study manifest.',
+    'POST /api/studies/:id/start': 'Start a ready frozen Study with {clientRequestId,manifestHash} after admission checks.',
+    'POST /api/studies/:id/pause': 'Finish the current cell, then pause before launching another.',
+    'POST /api/studies/:id/resume': 'Explicitly resume a paused Study with {clientRequestId,manifestHash}. Restart never auto-resumes.',
+    'POST /api/studies/:id/stop': 'Cancel the active child immediately and mark unstarted cells not_run.',
+    'POST /api/studies/:id/close': 'Close a paused Study and retain all cells, marking queued cells not_run.',
     'POST /api/runs': 'Start an isolated blank run. Supply provider, model, prompt and bounded limits. sourceIds chooses 1–24 images from the combined catalog in exact order, with matching sourceHashes. Optional materialSelection records pinned IDs, a deterministic random count/seed, candidate IDs, algorithm and reviewed catalog snapshot; it must reproduce the submitted sourceIds. Omitted sourceIds uses the studio inventory. UUID clientRequestId durably deduplicates identical launches, including after restart or catalog changes; changed settings with that identifier return 409.',
     'GET /api/runs': 'List saved experiments and their progress.',
     'GET /api/runs/:id/events': 'Read observations, requests, returned model output, batch results and termination events.',
@@ -210,6 +216,7 @@ export async function createApp({ publicDir = join(ROOT, 'public'), dataDir, ini
   let batches;
   let gifs;
   let campaigns;
+  let studyStore;
   let studies;
   try {
   const sessionPath = join(dataDir, 'session.json');
@@ -235,8 +242,14 @@ export async function createApp({ publicDir = join(ROOT, 'public'), dataDir, ini
   campaigns = await createCampaignManager({ dataDir: join(dataDir, 'campaigns') });
   runs = await createRunManager({ dataDir: join(dataDir, 'runs'), providerFactory: id => providerRegistry.capture(id) });
   const materials = createMaterialCatalog({ directory: join(dataDir, 'source-library') });
-  studies = await createStudyStore({ dataDir: join(dataDir, 'studies'), materials, getInventory: () => clone(project.sources), campaigns });
+  studyStore = await createStudyStore({ dataDir: join(dataDir, 'studies'), materials, getInventory: () => clone(project.sources), campaigns });
   batches = await createBatchManager({ dataDir: join(dataDir, 'batches'), runs, materials, getInventory: () => clone(project.sources), providerFactory: id => providerRegistry.capture(id) });
+  studies = await createStudyManager({
+    store: studyStore, runs, campaigns,
+    admission: { review() {
+      if (batches.hasActive() || runs.list().some(run => run.status === 'running')) fail('Another launch is active. Wait for it to finish or stop it before starting a Study.', 409);
+    } },
+  });
   const archives = createArchiveCatalog();
   gifs = createGIFExporter();
   async function sendGIF(response, url, catalog, id) {
@@ -327,27 +340,34 @@ export async function createApp({ publicDir = join(ROOT, 'public'), dataDir, ini
         if (request.method !== 'POST') fail('Method not allowed.', 405);
         const body = await readJSON(request);
         if (!isObject(body) || Reflect.ownKeys(body).length !== 1 || !Object.hasOwn(body, 'draft')) fail('Study preview requires only a draft.');
-        return sendJSON(response, 200, { preview: await studies.preview(body.draft) });
+        return sendJSON(response, 200, { preview: await studyStore.preview(body.draft) });
       }
       if (path === '/api/studies') {
-        if (request.method === 'GET') return sendJSON(response, 200, { studies: studies.list() });
+        if (request.method === 'GET') return sendJSON(response, 200, { studies: studyStore.list() });
         if (request.method === 'POST') {
-          const result = await studies.create(await readJSON(request));
+          const result = await studyStore.create(await readJSON(request));
+          studies.register(result.study.id);
           return sendJSON(response, result.created ? 201 : 200, { study: result.study });
         }
         fail('Method not allowed.', 405);
       }
       if (path.startsWith('/api/studies/')) {
-        const studyRoute = /^\/api\/studies\/(study-[a-f0-9-]{36})(?:\/sources\/([a-zA-Z0-9_-]{1,100}))?$/.exec(path);
+        const studyRoute = /^\/api\/studies\/(study-[a-f0-9-]{36})(?:(?:\/sources\/([a-zA-Z0-9_-]{1,100}))|\/(start|pause|resume|stop|close))?$/.exec(path);
         if (!studyRoute) fail('Study not found.', 404);
+        const [, id, sourceId, action] = studyRoute;
+        if (action) {
+          if (request.method !== 'POST') fail('Method not allowed.', 405);
+          const body = await readJSON(request);
+          const state = await serialized(() => studies[action](id, body));
+          return sendJSON(response, 200, { study: { ...studyStore.get(id), state } });
+        }
         if (request.method !== 'GET') fail('Method not allowed.', 405);
-        const [, id, sourceId] = studyRoute;
         if (sourceId) {
-          const { bytes, mime } = await studies.asset(id, sourceId);
+          const { bytes, mime } = await studyStore.asset(id, sourceId);
           response.writeHead(200, { 'Content-Type': mime, 'Content-Length': bytes.length, 'Cache-Control': 'no-store' });
           return response.end(bytes);
         }
-        return sendJSON(response, 200, { study: studies.get(id) });
+        return sendJSON(response, 200, { study: studyStore.get(id) });
       }
       if (request.method === 'GET' && path === '/api/providers') return sendJSON(response, 200, providerRegistry.list());
       if (request.method === 'GET' && path === '/api/source-catalog') {
@@ -375,7 +395,10 @@ export async function createApp({ publicDir = join(ROOT, 'public'), dataDir, ini
         if (request.method === 'GET') return sendJSON(response, 200, { batches: await batches.list() });
         if (request.method === 'POST') {
           const body = await readJSON(request);
-          const batch = await serialized(() => batches.start(body));
+          const batch = await serialized(() => {
+            if (studies.hasActive()) fail('A Study is active. Pause, stop, or finish it before starting a batch.', 409);
+            return batches.start(body);
+          });
           return sendJSON(response, 202, { batch });
         }
         fail('Method not allowed.', 405);
@@ -415,6 +438,7 @@ export async function createApp({ publicDir = join(ROOT, 'public'), dataDir, ini
               }
             }
             if (batches.hasActive()) fail('A batch is running. Stop it or wait for it to finish before starting another run.', 409);
+            if (studies.hasActive()) fail('A Study is active. Pause, stop, or finish it before starting another run.', 409);
             let recordedSelection;
             if (materialSelection !== undefined) {
               const recipe = normalizeMaterialSelection(materialSelection);
@@ -594,6 +618,7 @@ export async function createApp({ publicDir = join(ROOT, 'public'), dataDir, ini
     closing ??= (async () => {
       let failure;
       for (const operation of [
+        () => studies.closeAll(),
         () => batches.close(),
         () => runs.close(),
         () => gifs.close(),
@@ -607,6 +632,7 @@ export async function createApp({ publicDir = join(ROOT, 'public'), dataDir, ini
     return closing;
   } };
   } catch (error) {
+    await studies?.closeAll().catch(() => {});
     await batches?.close().catch(() => {});
     await runs?.close().catch(() => {});
     await gifs?.close().catch(() => {});
