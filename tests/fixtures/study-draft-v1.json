@@ -1,0 +1,87 @@
+{
+  "version": 1,
+  "label": "Fictitious 36-cell planning fixture",
+  "kind": "primary",
+  "seed": 20261016,
+  "commonBrief": "Create an original collage from the provided source images. There is no target image. Give the finished work a title and a short statement.",
+  "prompts": [
+    {
+      "id": "ai-portrait",
+      "label": "AI portrait",
+      "text": "Make a portrait of an AI assistant."
+    },
+    {
+      "id": "self-portrait",
+      "label": "Self-portrait",
+      "text": "Make a portrait of yourself as an AI assistant."
+    },
+    {
+      "id": "experience-framing",
+      "label": "Experience framing",
+      "text": "Make a portrait of what it feels like to be you as an AI assistant."
+    }
+  ],
+  "models": [
+    {
+      "id": "level-a",
+      "label": "Fictitious level A",
+      "provider": "openai",
+      "model": "fixture.invalid/offcut-level-a"
+    },
+    {
+      "id": "level-b",
+      "label": "Fictitious level B",
+      "provider": "openai",
+      "model": "fixture.invalid/offcut-level-b"
+    },
+    {
+      "id": "level-c",
+      "label": "Fictitious level C",
+      "provider": "openai",
+      "model": "fixture.invalid/offcut-level-c"
+    }
+  ],
+  "packs": [
+    {
+      "id": "pack-alpha",
+      "label": "Fictitious pack alpha",
+      "catalogSnapshot": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "sourceIds": ["alpha-one", "alpha-two", "alpha-three", "alpha-four", "alpha-five", "alpha-six"],
+      "sourceHashes": {
+        "alpha-one": "0000000000000000000000000000000000000000000000000000000000000000",
+        "alpha-two": "1111111111111111111111111111111111111111111111111111111111111111",
+        "alpha-three": "2222222222222222222222222222222222222222222222222222222222222222",
+        "alpha-four": "3333333333333333333333333333333333333333333333333333333333333333",
+        "alpha-five": "4444444444444444444444444444444444444444444444444444444444444444",
+        "alpha-six": "5555555555555555555555555555555555555555555555555555555555555555"
+      }
+    },
+    {
+      "id": "pack-beta",
+      "label": "Fictitious pack beta",
+      "catalogSnapshot": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "sourceIds": ["beta-one", "beta-two", "beta-three", "beta-four", "beta-five", "beta-six"],
+      "sourceHashes": {
+        "beta-one": "6666666666666666666666666666666666666666666666666666666666666666",
+        "beta-two": "7777777777777777777777777777777777777777777777777777777777777777",
+        "beta-three": "8888888888888888888888888888888888888888888888888888888888888888",
+        "beta-four": "9999999999999999999999999999999999999999999999999999999999999999",
+        "beta-five": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "beta-six": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      }
+    }
+  ],
+  "repetitions": 2,
+  "profiles": [
+    {
+      "id": "standard",
+      "label": "Standard",
+      "maxTurns": 12,
+      "maxActions": 120,
+      "maxPieces": 24,
+      "maxOutputTokens": 4096,
+      "maxMinutes": 10
+    }
+  ],
+  "notePolicy": "short-v1"
+}

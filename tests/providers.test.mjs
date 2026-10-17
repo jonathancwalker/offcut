@@ -71,3 +71,15 @@ test('unexpected credential echoes in successful provider responses are redacted
   assert.ok(!JSON.stringify(response).includes(key));
   assert.deepEqual(response.usage, { inputTokens: null, outputTokens: null, totalTokens: null });
 });
+
+test('adapter preserves billable cache and reasoning usage details without double-counting totals', async () => {
+  const registry = createProviderRegistry({ environmentKey: key, fetchImpl: async () => reply({
+    id: 'response-detailed', model: 'fixture-vision', output: [],
+    usage: { input_tokens: 100, output_tokens: 40, total_tokens: 140, input_tokens_details: { cached_tokens: 75 }, output_tokens_details: { reasoning_tokens: 30 } },
+  }) });
+  const response = await registry.capture('openai').generate(generation);
+  assert.deepEqual(response.usage, {
+    inputTokens: 100, outputTokens: 40, totalTokens: 140,
+    inputTokensDetails: { cachedTokens: 75 }, outputTokensDetails: { reasoningTokens: 30 },
+  });
+});

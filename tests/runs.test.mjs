@@ -13,8 +13,15 @@ const spec = { provider: 'openai', model: 'test-vision', prompt: 'Make something
 const cut = { type: 'cut', sourceId: 'page', pieceId: 'leaf', polygon: [[0, 0], [40, 0], [40, 40], [0, 40]] };
 const place = { type: 'place', pieceId: 'leaf', x: 300, y: 400, scale: 2 };
 const describe = { type: 'describe', title: 'A small beginning', statement: 'A piece of a page finds a new place.' };
+const study = { id: 'study-11111111-1111-4111-8111-111111111111', manifestHash: 'a'.repeat(64), cellId: `cell-${'b'.repeat(64)}`, campaignId: 'campaign-22222222-2222-4222-8222-222222222222' };
 const output = (actions = [], done = false, decision_note = 'Try this arrangement.') => ({ text: JSON.stringify({ decision_note, actions, done }), raw: { id: 'response-test', status: 'completed' }, usage: { inputTokens: 20, outputTokens: 10, totalTokens: 30 }, responseId: 'response-test', model: 'test-vision-pinned' });
 const deferred = () => { let resolve, reject; const promise = new Promise((a, b) => { resolve = a; reject = b; }); return { promise, resolve, reject }; };
+const studyGuard = (onReserve = async () => {}) => ({
+  async reserve(entry) { await onReserve(entry); return { reservationId: `reservation-${entry.turn}` }; },
+  async markDispatching() {},
+  async settle() {},
+  async releaseUndispatched() {},
+});
 
 async function setup(t, generate) {
   const dataDir = await mkdtemp(join(tmpdir(), 'offcut-runs-'));
@@ -30,7 +37,10 @@ async function setup(t, generate) {
 async function finished(manager, id) {
   for (let count = 0; count < 1000; count++) {
     const run = manager.get(id);
-    if (run.status !== 'running') return run;
+    if (run.status !== 'running') {
+      await manager.wait(id);
+      return manager.get(id);
+    }
     await new Promise(resolve => setTimeout(resolve, 5));
   }
   throw new Error('The test run did not finish.');
@@ -140,6 +150,11 @@ test('an invalid multi-action batch is rejected atomically and returned as feedb
   assert.ok(firstOutput < firstResult);
   assert.equal(events[firstResult].accepted, false);
   assert.equal(events[firstResult].step, 0);
+  assert.equal(events[firstResult].failureStage, 'action');
+  assert.equal(events[firstResult].failedActionIndex, 1);
+  assert.equal(events[firstResult].code, 'INVALID_ACTION');
+  assert.deepEqual(events[firstResult].actions, [cut, { ...place, pieceId: 'missing' }]);
+  assert.equal(events[firstResult].decision_note, 'Try this arrangement.');
 });
 
 test('malformed outputs and oversized batches consume bounded turns without changing the canvas', async t => {
@@ -153,6 +168,10 @@ test('malformed outputs and oversized batches consume bounded turns without chan
   assert.equal(calls, 2);
   assert.equal(end.acceptedActions, 0);
   assert.equal(manager.state(run.id).pieces.length, 0);
+  const rejected = manager.events(run.id).filter(event => event.type === 'batch_result');
+  assert.deepEqual(rejected.map(event => event.failureStage), ['parse', 'parse']);
+  assert.ok(rejected.every(event => event.code === 'INVALID_OUTPUT'));
+  assert.ok(rejected.every(event => !Object.hasOwn(event, 'failedActionIndex')));
 });
 
 test('action and piece limits are enforced by atomic validation, including consumed hidden pieces', async t => {
@@ -441,6 +460,13 @@ test('an exhausted action allowance gets exactly one read-only final look within
     assert.equal(calls, 2);
     assert.equal(manager.state(run.id).pieces[0].visible, true);
     assert.equal(manager.events(run.id).filter(event => event.type === 'final_review').length, scenario.status === 'completed' ? 1 : 0);
+    const rejectedEvent = manager.events(run.id).find(event => event.type === 'batch_result' && !event.accepted);
+    if (scenario.name === 'attempt an edit') {
+      assert.equal(rejectedEvent.failureStage, 'review_limit');
+      assert.equal(rejectedEvent.code, 'ACTION_LIMIT');
+      assert.ok(!Object.hasOwn(rejectedEvent, 'failedActionIndex'));
+      assert.deepEqual(rejectedEvent.actions, [{ type: 'remove', pieceId: 'leaf' }]);
+    }
   });
 });
 
@@ -549,6 +575,152 @@ test('spec validation rejects unknown fields and invalid bounds before invoking 
   assert.equal(manager.list().length, 0);
 });
 
+test('study provenance is normalized, mutually exclusive with batches, and requires a request guard before provider capture', async t => {
+  const { manager, source, factoryCalls } = await setup(t, async () => output([], true));
+  const batch = { id: `batch-${randomUUID()}`, groupIndex: 0, runIndex: 0 };
+  const invalid = [
+    null,
+    {},
+    { ...study, label: 'Do not retain this' },
+    { ...study, id: study.id.toUpperCase() },
+    { ...study, manifestHash: study.manifestHash.toUpperCase() },
+    { ...study, cellId: 'cell-short' },
+    { ...study, campaignId: 'campaign-other' },
+  ];
+  for (const provenance of invalid) await assert.rejects(manager.start({ spec, sources: [source], study: provenance }), /study provenance/);
+  await assert.rejects(manager.start({ spec, sources: [source], study, batch }), /mutually exclusive/);
+  await assert.rejects(manager.start({ spec, sources: [source], study }), error => error.status === 503 && /request guard/.test(error.message));
+  assert.equal(factoryCalls(), 0);
+  assert.equal(manager.list().length, 0);
+});
+
+test('a study run uses persisted v4 instructions, invokes its guard per request, and retains provenance through export and restart', async t => {
+  const guarded = [], requests = [];
+  let calls = 0;
+  const requestGuard = studyGuard(async entry => guarded.push(entry));
+  const { manager, source, dataDir, providerFactory } = await setup(t, async request => {
+    requests.push(request);
+    calls++;
+    if (calls === 1) return output([], true, '');
+    if (calls === 2) return output([{ type: 'describe', title: 'Written in stages' }], true, '');
+    return output([{ type: 'describe', statement: 'Both required fields were explicitly accepted.' }], true, '');
+  });
+  const run = await manager.start({ spec: { ...spec, maxTurns: 3 }, sources: [source], study, requestGuard });
+  const end = await manager.wait(run.id);
+  assert.equal(end.status, 'completed');
+  assert.deepEqual(end.study, study);
+  assert.equal(end.policy.version, 4);
+  assert.equal(end.policy.protocol, 'offcut-actions-v4');
+  assert.equal(end.policy.completion.requiresAcceptedDescription, true);
+  assert.equal(end.policy.instructionsSha256, createHash('sha256').update(end.policy.instructions).digest('hex'));
+  assert.match(end.policy.instructions, /accepted describe actions/);
+  assert.deepEqual(end.description, { required: true, titleAccepted: true, statementAccepted: true, titleNonblank: true, statementNonblank: true, complete: true });
+  assert.equal(calls, 3);
+  assert.equal(guarded.length, 3);
+  assert.deepEqual(guarded.map(entry => entry.study), [study, study, study]);
+  assert.deepEqual(guarded.map(entry => entry.requestId), [`${run.id}:turn:1`, `${run.id}:turn:2`, `${run.id}:turn:3`]);
+  for (const request of requests) {
+    const serialized = JSON.stringify(request);
+    for (const value of Object.values(study)) assert.ok(!serialized.includes(value));
+  }
+  const results = manager.events(run.id).filter(event => event.type === 'batch_result');
+  assert.deepEqual(results.map(event => event.completionDeferralReasons), [['missing_description'], ['missing_description'], []]);
+  assert.ok(results.every(event => event.decision_note === ''));
+  const started = manager.events(run.id).find(event => event.type === 'run_started');
+  assert.deepEqual(started.study, study);
+  assert.deepEqual(started.policy, end.policy);
+  assert.deepEqual((await manager.bundle(run.id)).run.study, study);
+  await manager.close();
+  const restarted = await createRunManager({ dataDir, providerFactory });
+  t.after(() => restarted.close());
+  assert.deepEqual(restarted.get(run.id).study, study);
+  assert.deepEqual(restarted.get(run.id).policy, end.policy);
+  assert.deepEqual((await restarted.bundle(run.id)).run.study, study);
+});
+
+test('study completion commits valid edits while deferring for writing and the latest canvas within existing limits', async t => {
+  await t.test('description plus final visual edits requires another observation', async t => {
+    let calls = 0;
+    const { manager, source } = await setup(t, async () => ++calls === 1 ? output([describe, cut, place], true) : output([], true));
+    const run = await manager.start({ spec, sources: [source], study, requestGuard: studyGuard() });
+    const end = await manager.wait(run.id);
+    assert.equal(end.status, 'completed');
+    assert.equal(calls, 2);
+    assert.deepEqual(manager.events(run.id).filter(event => event.type === 'batch_result').map(event => event.completionDeferralReasons), [['unobserved_canvas'], []]);
+    assert.equal(manager.events(run.id).find(event => event.type === 'final_review').observedStep, 3);
+  });
+
+  await t.test('missing writing preserves edits and reaches the turn limit without an extra call', async t => {
+    let calls = 0;
+    const feedback = [];
+    const { manager, source } = await setup(t, async request => {
+      calls++;
+      feedback.push(JSON.parse(request.messages.at(-1).text).feedback);
+      return calls === 1 ? output([cut, place], true) : output([], true);
+    });
+    const run = await manager.start({ spec: { ...spec, maxTurns: 2 }, sources: [source], study, requestGuard: studyGuard() });
+    const end = await manager.wait(run.id);
+    assert.equal(end.status, 'limit_reached');
+    assert.equal(end.terminationReason, 'turn_limit');
+    assert.equal(calls, 2);
+    assert.equal(end.acceptedActions, 2);
+    assert.equal(manager.state(run.id).pieces[0].visible, true);
+    assert.deepEqual(manager.events(run.id).filter(event => event.type === 'batch_result').map(event => event.completionDeferralReasons), [['unobserved_canvas', 'missing_description'], ['missing_description']]);
+    assert.match(feedback[1], /updated canvas/);
+    assert.match(feedback[1], /nonblank title/);
+    assert.match(feedback[1], /Remaining budget: 1 turns and 118 actions/);
+    assert.equal(end.description.complete, false);
+    assert.equal(manager.events(run.id).at(-1).description.complete, false);
+  });
+
+  await t.test('exhausting actions with missing writing adds no review call', async t => {
+    let calls = 0;
+    const { manager, source } = await setup(t, async () => { calls++; return output([cut, place], true); });
+    const run = await manager.start({ spec: { ...spec, maxTurns: 4, maxActions: 2 }, sources: [source], study, requestGuard: studyGuard() });
+    const end = await manager.wait(run.id);
+    assert.equal(end.status, 'limit_reached');
+    assert.equal(end.terminationReason, 'action_limit');
+    assert.equal(calls, 1);
+    assert.equal(end.acceptedActions, 2);
+    assert.equal(end.description.complete, false);
+  });
+});
+
+test('v3 and v4 apply the same accepted actions to identical pixels', async t => {
+  const responses = () => {
+    let calls = 0;
+    return async () => ++calls === 1 ? output([cut, place, describe], true) : output([], true);
+  };
+  const ordinaryFixture = await setup(t, responses());
+  const studyFixture = await setup(t, responses());
+  const ordinary = await ordinaryFixture.manager.start({ spec, sources: [ordinaryFixture.source] });
+  const studied = await studyFixture.manager.start({ spec, sources: [studyFixture.source], study, requestGuard: studyGuard() });
+  const [ordinaryEnd, studyEnd] = await Promise.all([ordinaryFixture.manager.wait(ordinary.id), studyFixture.manager.wait(studied.id)]);
+  assert.equal(ordinaryEnd.policy.version, 3);
+  assert.equal(studyEnd.policy.version, 4);
+  assert.equal(ordinaryEnd.status, 'completed');
+  assert.equal(studyEnd.status, 'completed');
+  assert.deepEqual(ordinaryFixture.manager.project(ordinary.id).actions.map(record => record.action), studyFixture.manager.project(studied.id).actions.map(record => record.action));
+  assert.deepEqual(await renderPNG(ordinaryFixture.manager.state(ordinary.id)), await renderPNG(studyFixture.manager.state(studied.id)));
+});
+
+test('baseline output schema rejects unknown note fields without inventing action failure location', async t => {
+  let calls = 0;
+  const { manager, source } = await setup(t, async () => {
+    if (++calls === 1) return { ...output(), text: JSON.stringify({ decision_note: '', actions: [cut], done: false, reasoning: 'not part of the protocol' }) };
+    return output([], true, '');
+  });
+  const run = await manager.start({ spec: { ...spec, maxTurns: 2 }, sources: [source] });
+  await manager.wait(run.id);
+  const rejected = manager.events(run.id).find(event => event.type === 'batch_result' && !event.accepted);
+  assert.equal(rejected.failureStage, 'parse');
+  assert.equal(rejected.code, 'INVALID_OUTPUT');
+  assert.ok(!Object.hasOwn(rejected, 'actions'));
+  assert.ok(!Object.hasOwn(rejected, 'decision_note'));
+  assert.ok(!Object.hasOwn(rejected, 'failedActionIndex'));
+  assert.equal(manager.project(run.id).actions.length, 0);
+});
+
 test('launch metadata is bounded, contains no extra fields, and is saved before provider execution', async t => {
   let persisted;
   const { manager, source, dataDir, factoryCalls } = await setup(t, async request => {
@@ -568,6 +740,12 @@ test('launch metadata is bounded, contains no extra fields, and is saved before 
   assert.deepEqual(persisted.launch, expected);
   assert.deepEqual(manager.get(run.id).launch, expected);
   assert.deepEqual(manager.events(run.id).find(event => event.type === 'run_started').launch, expected);
+  assert.equal((await manager.start({ spec, sources: [source], launch: expected })).id, run.id);
+  assert.equal(manager.findLaunch(expected.clientRequestId).id, run.id);
+  await assert.rejects(
+    manager.start({ spec, sources: [source], launch: { ...expected, requestFingerprint: 'c'.repeat(64) } }),
+    error => error.status === 409 && error.code === 'RECEIPT_CONFLICT',
+  );
   assert.equal(factoryCalls(), 1);
 });
 
@@ -783,4 +961,91 @@ test('legacy run recovery removes invented batch labels from a stale summary', a
   const recovered = await createRunManager({ dataDir, providerFactory });
   t.after(() => recovered.close());
   assert.equal(Object.hasOwn(recovered.get(run.id), 'batch'), false);
+});
+
+test('a denied spending reservation makes no transport call and consumes no requested turn or rejection', async t => {
+  let calls = 0, dispatches = 0, settlements = 0, releases = 0;
+  const { manager, source } = await setup(t, async () => { calls++; return output([], true); });
+  const requestGuard = {
+    async reserve() { throw Object.assign(new Error('Allowance exhausted.'), { code: 'STUDY_BUDGET_DENIED', status: 409 }); },
+    async markDispatching() { dispatches++; },
+    async settle() { settlements++; },
+    async releaseUndispatched() { releases++; },
+  };
+  const run = await manager.start({ spec, sources: [source], study, requestGuard });
+  const end = await finished(manager, run.id);
+  assert.equal(end.status, 'limit_reached');
+  assert.equal(end.terminationReason, 'study_budget');
+  assert.equal(end.turns, 0);
+  assert.equal(end.rejectedBatches, 0);
+  assert.equal(calls, 0);
+  assert.equal(dispatches, 0);
+  assert.equal(settlements, 0);
+  assert.equal(releases, 0);
+  const events = manager.events(run.id);
+  assert.equal(events.filter(event => event.type === 'budget_denied').length, 1);
+  assert.equal(events.filter(event => event.type === 'request').length, 0);
+});
+
+test('guarded requests settle valid detailed usage before malformed output is rejected', async t => {
+  const order = [];
+  const { manager, source } = await setup(t, async () => {
+    order.push('transport');
+    return { ...output(), text: '{malformed', usage: { inputTokens: 20, outputTokens: 10, totalTokens: 30, inputTokensDetails: { cachedTokens: 5 }, outputTokensDetails: { reasoningTokens: 4 } } };
+  });
+  const requestGuard = {
+    async reserve(input) { order.push('reserve'); assert.match(input.requestId, /:turn:1$/); return { reservationId: 'reservation-test' }; },
+    async markDispatching() { order.push('dispatching'); },
+    async settle(input) { order.push('settle'); assert.equal(input.usage.outputTokensDetails.reasoningTokens, 4); },
+    async releaseUndispatched() { order.push('release'); },
+  };
+  const run = await manager.start({ spec: { ...spec, maxTurns: 1 }, sources: [source], study, requestGuard });
+  const end = await finished(manager, run.id);
+  assert.equal(end.status, 'limit_reached');
+  assert.equal(end.turns, 1);
+  assert.equal(end.rejectedBatches, 1);
+  assert.deepEqual(order, ['reserve', 'dispatching', 'transport', 'settle']);
+  const modelOutput = manager.events(run.id).find(event => event.type === 'model_output');
+  assert.deepEqual(modelOutput.usage.inputTokensDetails, { cachedTokens: 5 });
+  assert.deepEqual(modelOutput.usage.outputTokensDetails, { reasoningTokens: 4 });
+});
+
+test('guarded requests never turn missing provider usage into a zero-cost settlement', async t => {
+  let settlement;
+  const { manager, source } = await setup(t, async () => ({ ...output(), usage: { inputTokens: null, outputTokens: null, totalTokens: null } }));
+  const requestGuard = {
+    async reserve() { return { reservationId: 'reservation-test' }; },
+    async markDispatching() {},
+    async settle(input) {
+      settlement = input;
+      throw Object.assign(new Error('Usage is unresolved.'), { code: 'UNRESOLVED_USAGE' });
+    },
+    async releaseUndispatched() { assert.fail('A dispatched reservation cannot be released.'); },
+  };
+  const run = await manager.start({ spec: { ...spec, maxTurns: 1 }, sources: [source], study, requestGuard });
+  const end = await finished(manager, run.id);
+  assert.equal(end.status, 'failed');
+  assert.equal(end.usageIncomplete, true);
+  assert.deepEqual(settlement.usage, { inputTokens: null, outputTokens: null, totalTokens: null });
+  const modelOutput = manager.events(run.id).find(event => event.type === 'model_output');
+  assert.deepEqual(modelOutput.usage, { inputTokens: 0, outputTokens: 0, totalTokens: 0 });
+});
+
+test('cancellation after dispatch keeps a guarded reservation unresolved and never releases it', async t => {
+  const entered = deferred();
+  let releases = 0, settlements = 0;
+  const { manager, source } = await setup(t, async () => { entered.resolve(); return new Promise(() => {}); });
+  const requestGuard = {
+    async reserve() { return { reservationId: 'reservation-test' }; },
+    async markDispatching() {},
+    async settle() { settlements++; },
+    async releaseUndispatched() { releases++; },
+  };
+  const run = await manager.start({ spec, sources: [source], study, requestGuard });
+  await entered.promise;
+  const stopped = await manager.stop(run.id);
+  assert.equal(stopped.status, 'stopped');
+  assert.equal(stopped.usageIncomplete, true);
+  assert.equal(settlements, 0);
+  assert.equal(releases, 0);
 });
