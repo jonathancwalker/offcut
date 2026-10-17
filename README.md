@@ -15,6 +15,8 @@ npm start
 
 Open **http://127.0.0.1:4317**. Inside this Codex workspace, the server can use the bundled `sharp` installation without installing dependencies. Elsewhere, run `npm install` first. Use `PORT=4318 npm start` if the default port is occupied.
 
+Offcut stores work in the repository's `.data/` directory by default. For a stable location shared across checkouts or worktrees, start it with an absolute path, for example `OFFCUT_DATA_DIR=/Users/me/Offcut-data npm start`. The server prints the selected directory at startup and takes an exclusive writer lock before opening records; a second server cannot write the same data root.
+
 The app listens on this computer only. The manual studio works offline without an account or model API key. Starter images and fonts are bundled locally. Model experiments require an OpenAI API connection and are billed to that account.
 
 ## Observe a model's work
@@ -56,6 +58,16 @@ In Work, choose **Download → Playback GIF** to share the recorded making of an
 GIF export runs locally using the existing renderer and Sharp, without model calls, API keys, uploads, or changes to projects, source images, or action records. The longest edge is at most 640 pixels, reduced further for long histories to keep the RGB timeline within 64 MiB; aspect ratio is retained to whole pixels. Source images used in the saved sequence may total up to 32 megapixels decoded (20 megapixels per image). Source decoding and encoding need additional memory beyond the timeline. One export runs at a time in a separate process, with a two-minute deadline. Use **Cancel GIF export** in the download menu to stop it, or retry from the same menu after an error. The GET endpoints `/api/archives/:id/render.gif` and `/api/runs/:id/render.gif` accept no query options and return an attachment; running works return 409.
 
 Runs save under `.data/runs/`. Each has frozen sources and their hashes, a specification, append-only events, image observations, model outputs, and replayable accepted actions. New picker launches also record pins, random count, seed, versioned sampling algorithm, reviewed catalog digest, and candidate IDs/hashes. Selected library sources retain their collection and bounded provenance in the run manifest. Earlier runs keep their original records. Past source/canvas observations are stored by hash; a full run export includes their bytes. Model calls use native image inputs with images resized to at most 1536 pixels on their longest edge. Cut coordinates remain in original source pixels. Prior textual context is retained; past image attachments are not resent.
+
+Before moving or copying a data root, stop Offcut and create a verified backup:
+
+```sh
+npm run data:backup -- --from /absolute/path/to/Offcut-data --out /absolute/path/to/new-backup
+```
+
+The destination must be new and outside the source. The command copies durable Offcut records, writes a sorted SHA-256 manifest, verifies every copied file, and never deletes or imports the source. To migrate, back up while the server is stopped, inspect the manifest, then start Offcut with `OFFCUT_DATA_DIR` pointing at the verified copy. Do not start a paid run during this process.
+
+After an unclean shutdown, a lock may remain. `npm run data:recover-lock -- --data /absolute/path/to/Offcut-data` removes it from service only when the recorded owner is this host and its PID is absent; the stale lock is renamed and preserved. Offcut never removes locks based on age. If ownership cannot be proved, recovery fails.
 
 Limits cover model turns, accepted actions, fragments, output tokens per request and elapsed time, plus a fixed textual-context ceiling. Usage is recorded when returned. **Dollar estimates and spending caps are not implemented yet**; a cancelled or failed request may still be billed, and incomplete usage is labeled. Provider network failures stop the run without automatic retries. Retrying an uncertain launch uses the same request identity to avoid creating a second run; it does not repeat model calls within an existing run. Malformed or invalid action batches remain recorded and can be corrected within the remaining turn budget. Restarting the server marks unfinished runs interrupted; it does not automatically resume paid requests.
 
