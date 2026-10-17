@@ -13,6 +13,7 @@ const secret = 'fixture-secret-never-export';
 const cut = { type: 'cut', sourceId: 'paper', pieceId: 'piece', polygon: [[0, 0], [30, 0], [30, 30], [0, 30]] };
 const place = { type: 'place', pieceId: 'piece', x: 500, y: 600, scale: 2, rotation: 20 };
 const spec = { provider: 'openai', model: 'fixture-vision', prompt: 'Make an original work.', maxTurns: 2, maxActions: 10, maxPieces: 4, maxOutputTokens: 512, maxMinutes: 1 };
+const study = { id: 'study-11111111-1111-4111-8111-111111111111', manifestHash: 'a'.repeat(64), cellId: `cell-${'b'.repeat(64)}`, campaignId: 'campaign-22222222-2222-4222-8222-222222222222' };
 
 async function fixture(t, fetchImpl, { sourceCount = 1 } = {}) {
   const directory = await mkdtemp(join(tmpdir(), 'offcut-run-api-'));
@@ -65,6 +66,10 @@ test('experiment API connects privately, preserves the studio and exports an exa
   assert.equal((await request('/api/providers/openai', { apiKey: secret }, 'POST', { Origin: 'https://external.invalid' })).status, 403);
   assert.equal((await request('/api/providers/openai', { apiKey: secret })).data.configured, true);
   assert.deepEqual((await request('/api/providers/openai/test', {})).data.models, ['fixture-vision']);
+  assert.equal(turns, 0);
+  const untrustedStudy = await request('/api/runs', { ...spec, study });
+  assert.equal(untrustedStudy.status, 400);
+  assert.match(untrustedStudy.data.error, /cannot be supplied/);
   assert.equal(turns, 0);
   await request('/api/actions', { type: 'describe', title: 'Keep the studio intact' });
   const before = (await request('/api/project')).data;

@@ -339,7 +339,8 @@ export async function createApp({ publicDir = join(ROOT, 'public'), dataDir, ini
         if (request.method === 'POST') {
           const body = await readJSON(request);
           if (!isObject(body)) fail('A run spec is required.');
-          const { sourceIds, sourceHashes, clientRequestId, materialSelection, ...spec } = body;
+          const { sourceIds, sourceHashes, clientRequestId, materialSelection, study, ...spec } = body;
+          if (study !== undefined) fail('Study provenance cannot be supplied through the run API.');
           if (clientRequestId !== undefined && (typeof clientRequestId !== 'string' || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(clientRequestId))) fail('clientRequestId must be a UUID.');
           const requestFingerprint = clientRequestId === undefined ? null : sha256(canonicalJSON(body));
           const run = await serialized(async () => {
