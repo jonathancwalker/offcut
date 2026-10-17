@@ -50,6 +50,10 @@ test('malformed model output stays unknown rather than zero proposed actions or 
   assert.equal(report.turns[0].proposedActionCount, null);
   assert.equal(report.turns[0].decisionNote, null);
   assert.equal(report.metrics.turnsWithNotes, 1);
+  assert.equal(report.metrics.rejectedTurnsWithFollowup, 1);
+  assert.equal(report.metrics.immediateAcceptedRecoveries, 1);
+  assert.equal(report.metrics.immediateAcceptedGeometricRecoveries, 0);
+  assert.equal(report.recovery[0].relatedProposalStatus, 'causal_action_unknown');
   assert.equal(report.metrics.rejectedBatches, 1);
 });
 

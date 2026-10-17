@@ -89,6 +89,15 @@ test('experiment API connects privately, preserves the studio and exports an exa
   assert.ok(bundle.events.some(event => event.type === 'observation'));
   assert.ok(Object.keys(bundle.assets).length > 0);
   assert.ok(!JSON.stringify(bundle).includes(secret));
+  const trace = (await request(`/api/runs/${id}/trace`)).data.trace;
+  assert.equal(trace.turns.length, 2);
+  assert.equal(trace.turns[0].validation.status, 'accepted');
+  assert.deepEqual(trace.turns[0].committedCursor, { from: 0, to: 2 });
+  const canvasReference = trace.turns[0].suppliedImages.find(image => image.id === 'canvas');
+  const observed = await fetch(`${base}/api/runs/${id}/assets/${canvasReference.sha256}`);
+  assert.equal(observed.status, 200);
+  assert.equal(observed.headers.get('content-type'), 'image/png');
+  assert.equal((await fetch(`${base}/api/runs/${id}/assets/${'f'.repeat(64)}`)).status, 404);
   assert.ok(!(await readFile(join(directory, 'runs', id, 'events.jsonl'), 'utf8')).includes(secret));
   const requestsToModel = requests.filter(item => item.url.endsWith('/responses'));
   assert.equal(requestsToModel.length, 2);
@@ -125,6 +134,7 @@ test('one worker rejects concurrent launches and stop cancels the pending provid
   await request('/api/providers/openai', { apiKey: secret });
   const { data } = await request('/api/runs', spec);
   await providerStarted;
+  assert.equal((await request(`/api/runs/${data.run.id}/trace`)).status, 409);
   const runningGIF = await fetch(`${base}/api/runs/${data.run.id}/render.gif`);
   assert.equal(runningGIF.status, 409);
   assert.match((await runningGIF.json()).error, /once this work ends/);

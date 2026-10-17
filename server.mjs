@@ -168,6 +168,7 @@ export const API_HELP = {
     'POST /api/runs': 'Start an isolated blank run. Supply provider, model, prompt and bounded limits. sourceIds chooses 1–24 images from the combined catalog in exact order, with matching sourceHashes. Optional materialSelection records pinned IDs, a deterministic random count/seed, candidate IDs, algorithm and reviewed catalog snapshot; it must reproduce the submitted sourceIds. Omitted sourceIds uses the studio inventory. UUID clientRequestId durably deduplicates identical launches, including after restart or catalog changes; changed settings with that identifier return 409.',
     'GET /api/runs': 'List saved experiments and their progress.',
     'GET /api/runs/:id/events': 'Read observations, requests, returned model output, batch results and termination events.',
+    'GET /api/runs/:id/trace': 'Read the evidence-linked attempted-turn trace after a run ends.',
     'GET /api/runs/:id/export': 'Download the complete run bundle with deduplicated observation images and replayable project.',
     'GET /api/runs/:id/render.gif': 'Download playback from blank canvas through the saved cursor after a run ends. No query options. Also available for /api/archives/:id/render.gif.',
     'POST /api/runs/:id/stop': 'Cancel an experiment and retain its committed history.',
@@ -399,7 +400,17 @@ export async function createApp({ publicDir = join(ROOT, 'public'), dataDir, ini
         response.writeHead(200, { 'Content-Type': png ? 'image/png' : 'image/svg+xml; charset=utf-8', 'Cache-Control': 'no-store' });
         return response.end(rendered);
       }
-      const runRoute = /^\/api\/runs\/([a-zA-Z0-9_-]+)(?:\/(events|project|export|render\.png|render\.svg|render\.gif|stop))?$/.exec(path);
+      const runAssetRoute = /^\/api\/runs\/([a-zA-Z0-9_-]+)\/assets\/([a-f0-9]{64})$/.exec(path);
+      if (runAssetRoute) {
+        if (request.method !== 'GET') fail('Method not allowed.', 405);
+        const [, id, sha256] = runAssetRoute;
+        const run = runs.get(id);
+        if (run.status === 'running') fail('Observation images are available once this work ends.', 409);
+        const bytes = await runs.asset(id, sha256);
+        response.writeHead(200, { 'Content-Type': 'image/png', 'Content-Length': bytes.length, 'Cache-Control': 'no-store' });
+        return response.end(bytes);
+      }
+      const runRoute = /^\/api\/runs\/([a-zA-Z0-9_-]+)(?:\/(events|trace|project|export|render\.png|render\.svg|render\.gif|stop))?$/.exec(path);
       if (runRoute) {
         const [, id, resource] = runRoute;
         if (request.method === 'POST' && resource === 'stop') {
@@ -410,6 +421,7 @@ export async function createApp({ publicDir = join(ROOT, 'public'), dataDir, ini
         if (resource === 'render.gif') return await sendGIF(response, url, runs, id);
         if (!resource) return sendJSON(response, 200, { run: await runs.get(id) });
         if (resource === 'events') return sendJSON(response, 200, { events: await runs.events(id) });
+        if (resource === 'trace') return sendJSON(response, 200, { trace: await runs.trace(id) });
         let step;
         if (url.searchParams.has('step')) {
           const raw = url.searchParams.get('step');
