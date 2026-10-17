@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Offcut study archive</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <header class="masthead">
+    <p class="eyebrow">OFFCUT / STUDY ARCHIVE</p>
+    <h1 id="study-title">Loading study…</h1>
+    <p id="study-subtitle" class="dek">A portable, read-only record of an agent’s work.</p>
+    <p id="load-status" class="status" role="status">Reading export.json</p>
+  </header>
+
+  <main id="app" hidden>
+    <section class="hero-grid" aria-label="Study overview">
+      <div>
+        <p class="section-kicker">The brief</p>
+        <p id="study-prompt" class="brief">No prompt recorded.</p>
+      </div>
+      <dl id="study-facts" class="facts"></dl>
+    </section>
+
+    <section class="workbench">
+      <aside class="cell-list-panel">
+        <div class="section-heading"><div><p class="section-kicker">Run matrix</p><h2>Every attempt</h2></div><span id="cell-count" class="count"></span></div>
+        <p class="muted">Select a cell to inspect its work, trace, and provenance.</p>
+        <div id="cell-list" class="cell-list"></div>
+      </aside>
+      <article id="cell-detail" class="cell-detail" aria-live="polite"></article>
+    </section>
+
+    <section class="support-grid">
+      <section class="card"><div class="section-heading"><div><p class="section-kicker">Material inventory</p><h2>Original works</h2></div><span id="source-count" class="count"></span></div><div id="sources" class="source-grid"></div></section>
+      <section class="card"><div class="section-heading"><div><p class="section-kicker">Study notes</p><h2>Analysis &amp; annotations</h2></div></div><div id="support-content" class="support-content"><p class="muted">No optional analysis or annotations were included.</p></div></section>
+    </section>
+  </main>
+
+  <footer><span>Exported by Offcut</span><span id="export-meta"></span></footer>
+  <script src="./app.js" defer></script>
+</body>
+</html>
