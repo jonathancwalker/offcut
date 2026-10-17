@@ -14,6 +14,7 @@ import { createMaterialCatalog } from './lib/material-catalog.mjs';
 import { acquireDataRoot, resolveDataRoot } from './lib/data-root.mjs';
 import { normalizeMaterialSelection, drawMaterialIds } from './public/material-selection.mjs';
 import { createCampaignManager } from './lib/study-budget.mjs';
+import { createStudyStore } from './lib/study-store.mjs';
 import { listRateSnapshots } from './lib/model-rates.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
@@ -172,6 +173,11 @@ export const API_HELP = {
     'GET /api/campaigns': 'List safe Study allowance summaries with accounted, reserved, uncertain, and available amounts.',
     'GET /api/campaigns/:id': 'Inspect one Study allowance and its reviewed rate snapshot.',
     'POST /api/campaigns/:id/reconcile': 'Resolve one uncertain dispatched reservation after checking billing, using {clientRequestId,reservationId,chargeMicros,evidenceNote}.',
+    'POST /api/studies/preview': 'Validate and expand a Study draft without freezing sources, creating records, connecting a provider, or spending money.',
+    'POST /api/studies': 'Freeze a reviewed Study plan and its exact source bytes with {clientRequestId,draft,campaignId}. This does not start inference.',
+    'GET /api/studies': 'List frozen Study records and their safe progress summaries.',
+    'GET /api/studies/:id': 'Inspect one immutable Study manifest and current state.',
+    'GET /api/studies/:id/sources/:sourceId': 'Read source bytes frozen into one Study manifest.',
     'POST /api/runs': 'Start an isolated blank run. Supply provider, model, prompt and bounded limits. sourceIds chooses 1–24 images from the combined catalog in exact order, with matching sourceHashes. Optional materialSelection records pinned IDs, a deterministic random count/seed, candidate IDs, algorithm and reviewed catalog snapshot; it must reproduce the submitted sourceIds. Omitted sourceIds uses the studio inventory. UUID clientRequestId durably deduplicates identical launches, including after restart or catalog changes; changed settings with that identifier return 409.',
     'GET /api/runs': 'List saved experiments and their progress.',
     'GET /api/runs/:id/events': 'Read observations, requests, returned model output, batch results and termination events.',
@@ -204,6 +210,7 @@ export async function createApp({ publicDir = join(ROOT, 'public'), dataDir, ini
   let batches;
   let gifs;
   let campaigns;
+  let studies;
   try {
   const sessionPath = join(dataDir, 'session.json');
   let project;
@@ -228,6 +235,7 @@ export async function createApp({ publicDir = join(ROOT, 'public'), dataDir, ini
   campaigns = await createCampaignManager({ dataDir: join(dataDir, 'campaigns') });
   runs = await createRunManager({ dataDir: join(dataDir, 'runs'), providerFactory: id => providerRegistry.capture(id) });
   const materials = createMaterialCatalog({ directory: join(dataDir, 'source-library') });
+  studies = await createStudyStore({ dataDir: join(dataDir, 'studies'), materials, getInventory: () => clone(project.sources), campaigns });
   batches = await createBatchManager({ dataDir: join(dataDir, 'batches'), runs, materials, getInventory: () => clone(project.sources), providerFactory: id => providerRegistry.capture(id) });
   const archives = createArchiveCatalog();
   gifs = createGIFExporter();
@@ -314,6 +322,32 @@ export async function createApp({ publicDir = join(ROOT, 'public'), dataDir, ini
         }
         if (request.method !== 'GET') fail('Method not allowed.', 405);
         return sendJSON(response, 200, { campaign: campaigns.get(id) });
+      }
+      if (path === '/api/studies/preview') {
+        if (request.method !== 'POST') fail('Method not allowed.', 405);
+        const body = await readJSON(request);
+        if (!isObject(body) || Reflect.ownKeys(body).length !== 1 || !Object.hasOwn(body, 'draft')) fail('Study preview requires only a draft.');
+        return sendJSON(response, 200, { preview: await studies.preview(body.draft) });
+      }
+      if (path === '/api/studies') {
+        if (request.method === 'GET') return sendJSON(response, 200, { studies: studies.list() });
+        if (request.method === 'POST') {
+          const result = await studies.create(await readJSON(request));
+          return sendJSON(response, result.created ? 201 : 200, { study: result.study });
+        }
+        fail('Method not allowed.', 405);
+      }
+      if (path.startsWith('/api/studies/')) {
+        const studyRoute = /^\/api\/studies\/(study-[a-f0-9-]{36})(?:\/sources\/([a-zA-Z0-9_-]{1,100}))?$/.exec(path);
+        if (!studyRoute) fail('Study not found.', 404);
+        if (request.method !== 'GET') fail('Method not allowed.', 405);
+        const [, id, sourceId] = studyRoute;
+        if (sourceId) {
+          const { bytes, mime } = await studies.asset(id, sourceId);
+          response.writeHead(200, { 'Content-Type': mime, 'Content-Length': bytes.length, 'Cache-Control': 'no-store' });
+          return response.end(bytes);
+        }
+        return sendJSON(response, 200, { study: studies.get(id) });
       }
       if (request.method === 'GET' && path === '/api/providers') return sendJSON(response, 200, providerRegistry.list());
       if (request.method === 'GET' && path === '/api/source-catalog') {
