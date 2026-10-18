@@ -11,6 +11,7 @@ test('registry validates and dispatches independent adapter lifecycles', async (
   const adapter = id => ({
     id,
     metadata: () => ({ id, name: id.toUpperCase(), configured: true, keySource: 'fixture' }),
+    protocol: () => ({ adapter: `${id}-v1`, endpoint: `https://${id}.invalid/generate` }),
     set: body => { calls.push([id, 'set', body]); return { id, configured: true }; },
     forget: () => { calls.push([id, 'forget']); return { id, configured: false }; },
     test: async () => { calls.push([id, 'test']); return { models: [`${id}-vision`] }; },
@@ -19,6 +20,10 @@ test('registry validates and dispatches independent adapter lifecycles', async (
   const registry = createProviderRegistry({ adapters: [adapter('alpha'), adapter('beta')] });
   assert.deepEqual(registry.ids(), ['alpha', 'beta']);
   assert.deepEqual(registry.list().providers.map(item => item.id), ['alpha', 'beta']);
+  assert.deepEqual(registry.protocols(['beta', 'alpha', 'beta']), {
+    alpha: { adapter: 'alpha-v1', endpoint: 'https://alpha.invalid/generate' },
+    beta: { adapter: 'beta-v1', endpoint: 'https://beta.invalid/generate' },
+  });
   assert.deepEqual((await registry.test('beta')).models, ['beta-vision']);
   assert.equal(registry.capture('alpha').id, 'alpha');
   registry.set('beta', { token: 'private' });
