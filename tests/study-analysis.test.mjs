@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { getSharp } from '../lib/render.mjs';
 import { applyAction, createState } from '../lib/engine.mjs';
 import { analyzeCollage, measureActionMix, materialReuseJaccard } from '../lib/collage-metrics.mjs';
-import { analyzeStudySnapshot, campaignAccounting, studyRunsCSV, studyRecoveryCSV } from '../lib/study-analysis.mjs';
+import { analyzeStudySnapshot, campaignAccounting, normalizeStudyEntries, studyRunsCSV, studyRecoveryCSV } from '../lib/study-analysis.mjs';
 
 const idHash = value => createHash('sha256').update(value).digest('hex');
 const canonical = value => Array.isArray(value) ? `[${value.map(canonical).join(',')}]` : value && typeof value === 'object' ? `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${canonical(value[key])}`).join(',')}}` : JSON.stringify(value);
@@ -92,7 +92,7 @@ test('campaign accounting sums every settled turn and keeps uncertain runs incom
   const campaignId = 'campaign-00000000-0000-4000-8000-000000000000', runId = 'run-00000000-0000-4000-8000-000000000000';
   const directory = join(root, 'campaigns', campaignId);
   await mkdir(directory, { recursive: true });
-  await writeFile(join(directory, 'config.json'), JSON.stringify({ format: 'offcut-campaign', version: 1, id: campaignId }));
+  await writeFile(join(directory, 'config.json'), JSON.stringify({ format: 'offcut-campaign', version: 2, id: campaignId }));
   let prior = null;
   const events = [];
   const add = value => {
@@ -123,6 +123,15 @@ function manifestFixture() {
     },
   };
 }
+
+test('study state validation follows randomized execution order instead of manifest storage order', () => {
+  const first = { cellId: `cell-${'a'.repeat(64)}` }, second = { cellId: `cell-${'b'.repeat(64)}` };
+  const state = { format: 'offcut-study-state', version: 1, id: 'study-00000000-0000-4000-8000-000000000000', manifestHash: 'c'.repeat(64), entries: [
+    { cellId: second.cellId, executionIndex: 0, status: 'completed', runId: 'run-00000000-0000-4000-8000-000000000002' },
+    { cellId: first.cellId, executionIndex: 1, status: 'completed', runId: 'run-00000000-0000-4000-8000-000000000001' },
+  ] };
+  assert.deepEqual([...normalizeStudyEntries(state, [second, first], state.id, state.manifestHash).keys()], [second.cellId, first.cellId]);
+});
 
 test('study snapshot keeps planned cells and reports incomplete run evidence', async () => {
   const { studyId, cellId, manifest } = manifestFixture();
