@@ -23,6 +23,11 @@ test('campaign APIs expose reviewed snapshots and durable idempotent Study allow
   assert.equal(rates.data.defaultLimitMicros, 50_000_000);
   assert.equal(rates.data.rateSnapshots[0].currency, 'USD');
   assert.match(rates.data.rateSnapshots[0].hash, /^[a-f0-9]{64}$/);
+  const qualifications = await request('/api/study-qualifications');
+  assert.equal(qualifications.status, 200);
+  assert.equal(qualifications.data.qualifications.format, 'offcut-provider-qualification');
+  assert.ok(qualifications.data.qualifications.routes.some(route => route.provider === 'openai' && route.priced && !route.calibrated));
+  assert.equal(transportCalls, 0, 'building the report must not call a provider');
   const clientRequestId = randomUUID();
   const body = { clientRequestId, limitMicros: 50_000_000, rateSnapshotId: rates.data.rateSnapshots[0].id };
   const created = await request('/api/campaigns', body);
