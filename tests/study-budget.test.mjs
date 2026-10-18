@@ -33,7 +33,7 @@ async function campaign(manager, limitMicros = 50_000_000) {
 
 test('reviewed snapshots use exact route matching, documented image bounds, and integer upward rounding', () => {
   const snapshots = listRateSnapshots();
-  assert.equal(snapshots.length, 3);
+  assert.equal(snapshots.length, 4);
   const snapshot = snapshots.find(value => value.id === snapshotId);
   assert.match(snapshot.hash, /^[a-f0-9]{64}$/);
   assert.equal(snapshot.reviewedAt, '2026-10-17T00:00:00.000Z');
@@ -59,7 +59,7 @@ test('rate books select exact provider snapshots and reject unpriced providers b
   const books = listRateBooks();
   assert.equal(books.length, 1);
   assert.match(books[0].hash, /^[a-f0-9]{64}$/);
-  assert.deepEqual(books[0].snapshots.map(value => value.provider), ['openai', 'google', 'anthropic']);
+  assert.deepEqual(books[0].snapshots.map(value => value.provider), ['openai', 'google', 'anthropic', 'alibaba']);
   const estimate = estimateProviderRequest(getRateBook(rateBookId), { provider: 'openai', request: request(), images: [image()] });
   assert.equal(estimate.provider, 'openai');
   assert.throws(
