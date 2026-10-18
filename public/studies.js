@@ -5,7 +5,7 @@ async function request(path) { const response = await fetch(path, {cache:'no-sto
 function render(studies) {
   $('study-count').textContent = studies.length ? `· ${studies.length}` : '';
   $('study-list').replaceChildren(...studies.map(study => {
-    const link = element('a', 'study-card'); link.href = `/study.html?study=${encodeURIComponent(study.id)}`;
+    const link = element('a', 'study-card'); link.href = `/study-status.html?study=${encodeURIComponent(study.id)}`;
     const heading = element('div', 'study-card-heading'); heading.append(element('h2', '', study.label || study.id), element('span', `study-status study-status-${study.status}`, statuses[study.status] || study.status));
     const meta = element('p', 'study-card-meta', `${study.kind || 'Study'} · ${study.progress?.total ?? 0} cells · ${new Date(study.createdAt).toLocaleDateString()}`);
     const progress = element('p', 'study-card-progress', Object.entries(study.progress?.statuses || {}).map(([status, count]) => `${count} ${statuses[status] || status.toLowerCase()}`).join(' · '));

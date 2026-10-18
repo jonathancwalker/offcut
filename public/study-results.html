@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#faf9f6"><title>Study comparison — Offcut</title><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/study-results.css"></head>
+<body class="study-results-page">
+  <header class="app-header"><a class="brand" href="/" aria-label="Offcut library"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>offcut</a><nav class="app-nav" aria-label="Main navigation"><a class="nav-link" href="/">Library</a><a class="nav-link active" href="/studies.html" aria-current="page">Studies</a></nav><div class="header-actions"><a id="coding-link" class="secondary-button" href="#">Blind coding</a></div></header>
+  <main class="results-main">
+    <header class="results-heading"><div><a id="study-link" class="back-link" href="#">← Study</a><p class="eyebrow">Model comparison</p><h1 id="results-title">Study results</h1><p id="results-subtitle"></p></div></header>
+    <div id="results-error" class="page-error" role="alert" hidden><span id="results-error-message"></span><button id="retry-results" class="text-button" type="button">Try again</button></div>
+    <p id="results-loading" class="collection-loading" role="status">Building comparison…</p>
+    <section id="results-content" hidden>
+      <div class="playback-bar"><div><p class="eyebrow">Synchronized playback</p><span id="playback-caption">Final works</span></div><button id="play-results" class="secondary-button" type="button">▶ Play all</button><input id="playback-range" type="range" min="0" max="100" value="100" step="1" aria-label="Synchronized playback progress"></div>
+      <div id="result-grid" class="result-grid"></div>
+      <p class="measurement-note">Measurements describe recorded behavior and visible material use. They do not score artistic quality or reveal private reasoning.</p>
+    </section>
+  </main>
+  <script type="module" src="/study-results.js"></script>
+</body>
+</html>

@@ -19,6 +19,7 @@ import { createStudyManager } from './lib/studies.mjs';
 import { createStudyAnnotationStore } from './lib/study-annotations.mjs';
 import { listRateBooks, listRateSnapshots } from './lib/model-rates.mjs';
 import { buildQualificationReport } from './lib/provider-qualification.mjs';
+import { analyzeStudyDirectory } from './lib/study-analysis.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const MAX_BODY_BYTES = 40 * 1024 * 1024;
@@ -181,6 +182,7 @@ export const API_HELP = {
     'POST /api/studies': 'Freeze a reviewed Study plan and its exact source bytes with {clientRequestId,draft,campaignId}. This does not start inference.',
     'GET /api/studies': 'List frozen Study records and their safe progress summaries.',
     'GET /api/studies/:id': 'Inspect one immutable Study manifest and current state.',
+    'GET /api/studies/:id/analysis': 'Compute read-only trajectory and composition measurements from settled Study records.',
     'GET /api/studies/:id/annotations': 'Read the blinded, opaque annotation slots and saved annotation versions for a Study.',
     'POST /api/studies/:id/annotations': 'Append one stage-separated researcher annotation. Supply displayId and expectedRevision; stale revisions return 409.',
     'GET /api/studies/:id/review': 'List opaque review cards without cell, model, source, run, or status identity fields.',
@@ -374,6 +376,12 @@ export async function createApp({ publicDir = join(ROOT, 'public'), dataDir, ini
           return sendJSON(response, 201, annotation);
         }
         fail('Method not allowed.', 405);
+      }
+      const analysisRoute = /^\/api\/studies\/(study-[a-f0-9-]{36})\/analysis$/.exec(path);
+      if (analysisRoute) {
+        if (request.method !== 'GET') fail('Method not allowed.', 405);
+        const { report } = await analyzeStudyDirectory({ dataRoot: dataDir, studyId: analysisRoute[1] });
+        return sendJSON(response, 200, { analysis: report });
       }
       const reviewListRoute = /^\/api\/studies\/(study-[a-f0-9-]{36})\/review$/.exec(path);
       if (reviewListRoute) {
