@@ -71,6 +71,16 @@ try {
     await page.goto(`${origin}/study-new.html`);
     await page.waitForFunction(() => document.querySelectorAll('#source-grid .study-source').length === 24);
     assert.equal(await page.locator('#selected-tray .tray-chip').count(), 6);
+    await page.locator('[data-source-id="source-7"]').click();
+    assert.equal(await page.locator('#selected-tray .tray-chip').count(), 7, 'manual Study sets may contain more than six images');
+    await page.locator('[data-source-id="source-7"]').click();
+    await page.getByLabel('Images per set').fill('8');
+    await page.getByLabel('Random sets').fill('3');
+    await page.getByRole('button', { name: 'Generate draws' }).click();
+    assert.equal(await page.locator('.pack-tabs [role=tab]').count(), 4);
+    for (let index = 0; index < 3; index++) assert.equal(await page.locator('.pack-tabs [role=tab]').nth(index).getAttribute('data-count'), '8');
+    await page.reload();
+    await page.waitForFunction(() => document.querySelectorAll('#source-grid .study-source').length === 24);
     assert.equal(await page.locator('.provider-card').count(), 6);
     const openai = page.locator('.provider-card[data-provider="openai"]');
     assert.match(await openai.locator('.connection-state').textContent(), /not connected/i);
@@ -88,7 +98,7 @@ try {
     assert.equal(await page.locator('.pack-tabs [role=tab]').count(), 3);
     await page.locator('.pack-tabs [role=tab]').first().focus(); await page.keyboard.press('ArrowRight');
     assert.equal(await page.locator('.pack-tabs [role=tab]').nth(1).getAttribute('aria-selected'), 'true');
-    await page.getByLabel('Add primary material pack').click();
+    await page.getByLabel('Add primary material set').click();
     assert.equal(await page.locator('.pack-tabs [role=tab]').count(), 4);
     await page.locator('[data-source-id="source-19"]').click();
     await page.locator('[data-source-id="source-20"]').click();
@@ -96,7 +106,7 @@ try {
     await page.locator('[data-source-id="source-22"]').click();
     await page.locator('[data-source-id="source-23"]').click();
     await page.locator('[data-source-id="source-24"]').click();
-    await page.getByLabel('Pack name').fill('Maps and marks');
+    await page.getByLabel('Set name').fill('Maps and marks');
     await page.getByRole('button', { name: 'Duplicate' }).click();
     assert.equal(await page.locator('.pack-tabs [role=tab]').count(), 5);
     await page.getByRole('button', { name: 'Remove', exact: true }).click();
