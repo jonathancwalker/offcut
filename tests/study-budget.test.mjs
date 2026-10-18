@@ -5,9 +5,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { createCampaignManager } from '../lib/study-budget.mjs';
-import { accountUsage, estimateRequest, getRateSnapshot, listRateSnapshots } from '../lib/model-rates.mjs';
+import { accountUsage, estimateProviderRequest, estimateRequest, getRateBook, getRateSnapshot, listRateBooks, listRateSnapshots } from '../lib/model-rates.mjs';
 
 const snapshotId = 'openai-standard-2026-10-17';
+const rateBookId = 'offcut-reviewed-rates-2026-10-17';
 const route = 'gpt-5.6-luna';
 const runId = index => `run-00000000-0000-4000-8000-${String(index).padStart(12, '0')}`;
 const image = (id = 'canvas', width = 1000, height = 1200) => ({ id, width, height, sha256: String(id.length).padStart(64, '0'), mime: 'image/png' });
@@ -52,6 +53,30 @@ test('reviewed snapshots use exact route matching, documented image bounds, and 
   assert.equal(accountUsage(snapshot, { requestedRoute: route, returnedModel: route, usage: { inputTokens: 1, outputTokens: 0 } }).chargeMicros, 1);
   assert.throws(() => estimateRequest(snapshot, { request: request({ model: 'gpt-5.6-luna-latest-ish' }), images: [image()] }), error => error.code === 'UNPRICED_REQUEST');
   assert.throws(() => accountUsage(snapshot, { requestedRoute: route, returnedModel: `${route}-unknown`, usage: { inputTokens: 1, outputTokens: 1 } }), error => error.code === 'UNRESOLVED_USAGE');
+});
+
+test('rate books select exact provider snapshots and reject unpriced providers before dispatch', async t => {
+  const books = listRateBooks();
+  assert.equal(books.length, 1);
+  assert.match(books[0].hash, /^[a-f0-9]{64}$/);
+  assert.deepEqual(books[0].snapshots.map(value => value.provider), ['openai']);
+  const estimate = estimateProviderRequest(getRateBook(rateBookId), { provider: 'openai', request: request(), images: [image()] });
+  assert.equal(estimate.provider, 'openai');
+  assert.throws(
+    () => estimateProviderRequest(getRateBook(rateBookId), { provider: 'google', request: request(), images: [image()] }),
+    error => error.code === 'UNPRICED_REQUEST',
+  );
+  const { dataDir, manager } = await fixture(t);
+  const created = (await manager.create({ clientRequestId: randomUUID(), limitMicros: estimate.reservedMicros, rateBookId })).campaign;
+  assert.equal(created.rateBookId, rateBookId);
+  const reservation = await manager.guard(created.id).reserve({ provider: 'openai', requestId: `${runId(40)}:turn:1`, runId: runId(40), turn: 1, request: request(), images: [image()] });
+  assert.equal(reservation.provider, 'openai');
+  await assert.rejects(
+    manager.guard(created.id).reserve({ provider: 'google', requestId: `${runId(41)}:turn:1`, runId: runId(41), turn: 1, request: request(), images: [image()] }),
+    error => error.code === 'UNPRICED_REQUEST',
+  );
+  const reopened = await createCampaignManager({ dataDir });
+  assert.equal(reopened.get(created.id).rateBookHash, created.rateBookHash);
 });
 
 test('allowance equality succeeds, a one-micro shortage fails, and duplicate creation is durable', async t => {

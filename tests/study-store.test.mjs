@@ -43,9 +43,10 @@ async function setup(t, protocolSnapshotFactory) {
 }
 
 test('creates an immutable manifest and preserves the idempotent creation receipt', async t => {
-  let observedPolicy;
-  const { dataDir, store } = await setup(t, async policy => {
+  let observedPolicy, observedContext;
+  const { dataDir, store } = await setup(t, async (policy, context) => {
     observedPolicy = clone(policy);
+    observedContext = clone(context);
     return { version: 1, marker: 'test' };
   });
   const input = { clientRequestId: randomUUID(), draft: draft(), campaignId: 'campaign-test' };
@@ -56,6 +57,7 @@ test('creates an immutable manifest and preserves the idempotent creation receip
   assert.equal(observedPolicy.version, 4);
   assert.equal(observedPolicy.completion.requiresAcceptedDescription, true);
   assert.equal(observedPolicy.instructionsSha256.length, 64);
+  assert.deepEqual(observedContext.providers, ['openai']);
   assert.deepEqual(first.study.manifest.sources.map(source => source.id), ['source']);
   assert.deepEqual((await store.create(clone(input))).study, first.study);
   assert.equal((await store.list()).length, 1);
