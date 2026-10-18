@@ -565,7 +565,7 @@ test('the fixed textual context budget ends a run without silently dropping prio
 
 test('spec validation rejects unknown fields and invalid bounds before invoking a provider', async t => {
   const { manager, source, factoryCalls } = await setup(t, async () => output([], true));
-  for (const patch of [{ provider: 'other' }, { apiKey: 'never-store-this' }, { maxTurns: 41 }, { maxMinutes: 0 }, { maxOutputTokens: 255 }, { maxPieces: 65 }, { maxActions: 241 }, { model: '' }, { prompt: '' }]) {
+  for (const patch of [{ provider: 'Other Provider' }, { apiKey: 'never-store-this' }, { maxTurns: 41 }, { maxMinutes: 0 }, { maxOutputTokens: 255 }, { maxPieces: 65 }, { maxActions: 241 }, { model: '' }, { prompt: '' }]) {
     await assert.rejects(manager.start({ spec: { ...spec, ...patch }, sources: [source] }), error => error.status === 400);
   }
   await assert.rejects(manager.start({ spec, sources: [] }), error => error.status === 400);

@@ -426,7 +426,7 @@ export async function createApp({ publicDir = join(ROOT, 'public'), dataDir, ini
         response.writeHead(200, { 'Content-Type': mime, 'Content-Length': bytes.length, 'Cache-Control': 'no-store' });
         return response.end(bytes);
       }
-      const providerRoute = /^\/api\/providers\/(openai)(\/test)?$/.exec(path);
+      const providerRoute = /^\/api\/providers\/([a-z][a-z0-9-]{0,39})(\/test)?$/.exec(path);
       if (providerRoute) {
         const id = providerRoute[1];
         if (request.method === 'DELETE' && !providerRoute[2]) return sendJSON(response, 200, providerRegistry.forget(id));

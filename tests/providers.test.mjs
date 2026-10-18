@@ -6,6 +6,31 @@ const key = 'test-private-key-123';
 const reply = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 const generation = { model: 'fixture-vision', instructions: 'Return JSON.', messages: [{ role: 'user', text: 'Inspect the canvas.', images: [{ id: 'canvas', dataUrl: 'data:image/png;base64,YQ==' }] }], maxOutputTokens: 512 };
 
+test('registry validates and dispatches independent adapter lifecycles', async () => {
+  const calls = [];
+  const adapter = id => ({
+    id,
+    metadata: () => ({ id, name: id.toUpperCase(), configured: true, keySource: 'fixture' }),
+    set: body => { calls.push([id, 'set', body]); return { id, configured: true }; },
+    forget: () => { calls.push([id, 'forget']); return { id, configured: false }; },
+    test: async () => { calls.push([id, 'test']); return { models: [`${id}-vision`] }; },
+    capture: () => { calls.push([id, 'capture']); return { id, metadata: { adapter: `${id}-v1` }, generate: async () => ({ text: id }) }; },
+  });
+  const registry = createProviderRegistry({ adapters: [adapter('alpha'), adapter('beta')] });
+  assert.deepEqual(registry.ids(), ['alpha', 'beta']);
+  assert.deepEqual(registry.list().providers.map(item => item.id), ['alpha', 'beta']);
+  assert.deepEqual((await registry.test('beta')).models, ['beta-vision']);
+  assert.equal(registry.capture('alpha').id, 'alpha');
+  registry.set('beta', { token: 'private' });
+  registry.forget('alpha');
+  assert.deepEqual(calls.map(call => call.slice(0, 2)), [['beta', 'test'], ['alpha', 'capture'], ['beta', 'set'], ['alpha', 'forget']]);
+  assert.throws(() => registry.capture('missing'), error => error.code === 'PROVIDER_UNSUPPORTED' && error.status === 404);
+  assert.throws(() => createProviderRegistry({ adapters: [adapter('same'), adapter('same')] }), /duplicated/);
+  assert.throws(() => createProviderRegistry({ adapters: [{ id: 'broken' }] }), /missing metadata/);
+  const brokenCapture = adapter('broken-capture'); brokenCapture.capture = () => ({ id: 'wrong', metadata: {}, generate() {} });
+  assert.throws(() => createProviderRegistry({ adapters: [brokenCapture] }).capture('broken-capture'), /invalid captured connection/);
+});
+
 test('adapter attaches images natively and captures the credential without exporting it', async () => {
   const calls = [];
   const registry = createProviderRegistry({ environmentKey: '', fetchImpl: async (url, options) => {

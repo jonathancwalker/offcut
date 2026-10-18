@@ -32,7 +32,7 @@ export function normalizeSpec(input) {
   if (!object(input)) fail('An experiment spec is required.');
   const allowed = new Set(['provider', 'model', 'prompt', ...Object.keys(RUN_SPEC_LIMITS)]);
   for (const key of Reflect.ownKeys(input)) if (typeof key !== 'string' || !allowed.has(key)) fail(`Unknown experiment setting: ${String(key)}.`);
-  if (input.provider !== 'openai') fail('This runner currently supports the openai provider.');
+  if (typeof input.provider !== 'string' || !/^[a-z][a-z0-9-]{0,39}$/.test(input.provider)) fail('Choose a valid provider identifier.');
   if (typeof input.model !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,159}$/.test(input.model)) fail('Choose a valid model identifier.');
   if (typeof input.prompt !== 'string' || !input.prompt.trim() || input.prompt.length > 12000) fail('The experiment prompt must contain 1–12000 characters.');
   return {
