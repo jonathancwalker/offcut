@@ -205,7 +205,8 @@ test('draft, collection, and entry schemas reject unknown, missing, malformed, o
   for (const [collectionName, entry] of [['prompts', { extra: true }], ['models', { extra: true }], ['packs', { extra: true }], ['profiles', { extra: true }]]) {
     const draft = fixture(); Object.assign(draft[collectionName][0], entry); invalid(draft);
   }
-  const badProvider = fixture(); badProvider.models[0].provider = 'fixture'; invalid(badProvider);
+  const alternateProvider = fixture(); alternateProvider.models[0].provider = 'fixture-provider'; assert.equal(normalizeStudyDraft(alternateProvider).models[0].provider, 'fixture-provider');
+  const badProvider = fixture(); badProvider.models[0].provider = 'Fixture Provider'; invalid(badProvider);
   const badRoute = fixture(); badRoute.models[0].model = 'has spaces'; invalid(badRoute);
   const badNotePolicy = fixture(); badNotePolicy.notePolicy = 'verbose-v1'; invalid(badNotePolicy);
 });
