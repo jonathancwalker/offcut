@@ -75,6 +75,10 @@ test('rate books select exact provider snapshots and reject unpriced providers b
     manager.guard(created.id).reserve({ provider: 'xai', requestId: `${runId(41)}:turn:1`, runId: runId(41), turn: 1, request: request(), images: [image()] }),
     error => error.code === 'UNPRICED_REQUEST',
   );
+  await assert.rejects(
+    manager.guard(created.id).reserve({ provider: 'huggingface', requestId: `${runId(42)}:turn:1`, runId: runId(42), turn: 1, request: request(), images: [image()] }),
+    error => error.code === 'UNPRICED_REQUEST',
+  );
   const reopened = await createCampaignManager({ dataDir });
   assert.equal(reopened.get(created.id).rateBookHash, created.rateBookHash);
 });
