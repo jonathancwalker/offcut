@@ -18,6 +18,7 @@ import { createStudyStore } from './lib/study-store.mjs';
 import { createStudyManager } from './lib/studies.mjs';
 import { createStudyAnnotationStore } from './lib/study-annotations.mjs';
 import { listRateBooks, listRateSnapshots } from './lib/model-rates.mjs';
+import { buildQualificationReport } from './lib/provider-qualification.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const MAX_BODY_BYTES = 40 * 1024 * 1024;
@@ -171,6 +172,7 @@ export const API_HELP = {
     'POST /api/project': 'Import a previously exported project. Every action is replayed and checked before the current worktable is replaced.',
     'GET /api/providers': 'List available provider connections without exposing API keys.',
     'GET /api/study-rates': 'List reviewed server-owned model-rate and request-estimator snapshots. Browser requests cannot override these rules.',
+    'GET /api/study-qualifications': 'Build a credential-free route compatibility report from completed calibration runs and settled usage. No provider call is made.',
     'POST /api/campaigns': 'Create an immutable shared Study allowance with {clientRequestId,limitMicros,rateBookId}. Amounts are integer USD microdollars.',
     'GET /api/campaigns': 'List safe Study allowance summaries with accounted, reserved, uncertain, and available amounts.',
     'GET /api/campaigns/:id': 'Inspect one Study allowance and its reviewed provider rate book.',
@@ -327,6 +329,7 @@ export async function createApp({ publicDir = join(ROOT, 'public'), dataDir, ini
       const url = new URL(request.url, 'http://127.0.0.1');
       const path = url.pathname;
       if (request.method === 'GET' && path === '/api/study-rates') return sendJSON(response, 200, { defaultLimitMicros: 50_000_000, rateBooks: listRateBooks(), rateSnapshots: listRateSnapshots() });
+      if (request.method === 'GET' && path === '/api/study-qualifications') return sendJSON(response, 200, { qualifications: buildQualificationReport({ studies: studyStore, runs, campaigns, rateSnapshots: listRateSnapshots() }) });
       if (path === '/api/campaigns') {
         if (request.method === 'GET') return sendJSON(response, 200, { campaigns: campaigns.list() });
         if (request.method === 'POST') {

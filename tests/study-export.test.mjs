@@ -50,7 +50,13 @@ async function fixture(t, { secret = false, active = false } = {}) {
   const dataUrl = `data:image/png;base64,${sourceBytes.toString('base64')}`;
   const project = { id: 'fixture', sources: [{ id: 'paper', name: 'Paper', width: 4, height: 4, dataUrl }], canvas: { width: 20, height: 20, background: '#ffffff' }, rules: {}, actions: [], cursor: 0 };
   const run = { id: runId, status: active ? 'running' : 'completed', study: { id: studyId, manifestHash: manifest.manifestHash, cellId }, title: 'Untitled', statement: secret ? 'sk-should-never-export' : 'A quiet blank field.' };
-  const events = [{ sequence: 1, type: 'run_started' }, { sequence: 2, type: 'model_output', model: 'fixture/returned', text: '{}' }, { sequence: 3, type: 'termination', status: 'completed' }];
+  const events = [
+    { sequence: 1, type: 'run_started' },
+    { sequence: 2, type: 'request', turn: 1, requestId: `${runId}:turn:1`, request: { messages: [{ role: 'user', images: [{ id: 'paper', sha256: sourceHash, mime: 'image/png' }] }] } },
+    { sequence: 3, type: 'model_output', turn: 1, model: 'fixture/returned', responseId: 'response-fixture', text: '{}', usage: { inputTokens: 10, outputTokens: 4, totalTokens: 14 }, usageIncomplete: false },
+    { sequence: 4, type: 'batch_result', turn: 1, accepted: true, actions: [] },
+    { sequence: 5, type: 'termination', status: 'completed' },
+  ];
   await Promise.all([writeFile(join(runDir, 'run.json'), JSON.stringify(run)), writeFile(join(runDir, 'project.json'), JSON.stringify(project)), writeFile(join(runDir, 'events.jsonl'), `${events.map(JSON.stringify).join('\n')}\n`)]);
   return { root, out, studyId, manifestHash: manifest.manifestHash };
 }
@@ -62,7 +68,13 @@ test('exports every cell, externalizes source bytes, and verifies replay without
   assert.equal(result.attempted, 1);
   const index = JSON.parse(await readFile(join(f.out, 'export.json')));
   assert.equal(index.cells[0].returnedModel, 'fixture/returned');
+  assert.equal(index.cells[0].provider, 'openai');
+  assert.deepEqual(index.cells[0].responseIds, ['response-fixture']);
+  assert.equal(index.cells[0].qualification.nativeImage, true);
   assert.equal(index.cells[0].status, 'completed');
+  const qualifications = JSON.parse(await readFile(join(f.out, index.qualifications)));
+  assert.equal(qualifications.routes[0].requestedRoute, 'fixture/model');
+  assert.equal(qualifications.routes[0].evidence[0].completeUsage, true);
   assert.ok(!String(await readFile(join(f.out, index.works[0].project))).includes('base64'));
   assert.deepEqual(await verifyStudyExport(f.out), { valid: true, studyId: f.studyId, cells: 1, attempted: 1, assets: 1 });
   await assert.rejects(exportStudy({ dataDir: f.root, studyId: f.studyId, outDir: f.out }), error => error.code === 'STUDY_EXPORT_EXISTS');

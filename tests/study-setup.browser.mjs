@@ -40,6 +40,7 @@ const server = createServer(async (request, response) => {
   }
   if (url.pathname === '/api/studies' && request.method === 'GET') return json(response, 200, { studies: [{ id: 'study-calibration', kind: 'calibration', status: 'completed' }] });
   if (url.pathname === '/api/studies/study-calibration' && request.method === 'GET') return json(response, 200, { study: { id: 'study-calibration', kind: 'calibration', status: 'completed', state: { entries: [{ cellId: 'cell-luna', status: 'completed', runId: 'run-luna' }] }, manifest: { cells: [{ cellId: 'cell-luna', modelId: 'gpt-5-6-luna' }], plan: { normalizedDraft: { models: [{ id: 'gpt-5-6-luna', provider: 'openai', model: 'gpt-5.6-luna' }] } } } } });
+  if (url.pathname === '/api/study-qualifications') return json(response, 200, { qualifications: { routes: [{ provider: 'openai', requestedRoute: 'gpt-5.6-luna', calibrated: true, primaryEligible: true, calibrationEvidence: [{ campaignId: campaign.id, studyStatus: 'completed', status: 'completed', nativeImage: true, parseableActionJSON: true, completeUsage: true, settledUsage: true, deterministicReplay: true, credentialFree: true }] }] } });
   if (url.pathname === '/api/studies' && request.method === 'POST') {
     const input = await body(request);
     assert.deepEqual(input.draft, lastPreviewDraft, 'freeze must use the reviewed draft');
