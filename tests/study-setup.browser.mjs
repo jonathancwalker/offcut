@@ -14,19 +14,24 @@ const publicRoot = join(import.meta.dirname, '..', 'public');
 const tiny = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"><rect width="8" height="8" fill="#b94b2f"/></svg>');
 const sources = Array.from({ length: 24 }, (_, index) => ({ id: `source-${index + 1}`, name: `Source ${index + 1}`, width: 8, height: 8, sha256: (index + 1).toString(16).padStart(64, '0'), previewUrl: tiny, license: 'CC0' }));
 const campaign = { id: 'campaign-11111111-1111-4111-8111-111111111111', availableMicros: 50_000_000, accountedMicros: 0, reservedMicros: 0 };
-let lastPreviewDraft = null, frozen = null, startBodies = [], failFirstStart = true;
+let lastPreviewDraft = null, frozen = null, startBodies = [], failFirstStart = true, providerConfigured = false;
 const json = (response, status, value) => { response.writeHead(status, { 'Content-Type': 'application/json' }); response.end(JSON.stringify(value)); };
 const body = request => new Promise((resolve, reject) => { let raw = ''; request.setEncoding('utf8'); request.on('data', chunk => raw += chunk); request.on('end', () => { try { resolve(raw ? JSON.parse(raw) : null); } catch (error) { reject(error); } }); request.on('error', reject); });
 const server = createServer(async (request, response) => {
   const url = new URL(request.url, 'http://fixture');
   if (url.pathname === '/api/source-catalog') return json(response, 200, { snapshot: 'a'.repeat(64), sources });
-  if (url.pathname === '/api/study-rates') return json(response, 200, { rateSnapshots: [{ id: 'rates-v1', routes: [{ requestedRoute: 'gpt-5.6-luna' }] }] });
+  if (url.pathname === '/api/study-rates') return json(response, 200, { rateSnapshots: [{ id: 'rates-v1', routes: [{ provider: 'openai', requestedRoute: 'gpt-5.6-luna' }] }] });
+  if (url.pathname === '/api/providers') return json(response, 200, { providers: [{ id: 'openai', name: 'OpenAI', configured: providerConfigured, keySource: providerConfigured ? 'session' : null }] });
+  if (url.pathname === '/api/providers/openai' && request.method === 'POST') { const input = await body(request); assert.ok(input.apiKey); providerConfigured = true; return json(response, 200, { configured: true }); }
+  if (url.pathname === '/api/providers/openai' && request.method === 'DELETE') { providerConfigured = false; return json(response, 200, { configured: false }); }
+  if (url.pathname === '/api/providers/openai/test' && request.method === 'POST') return providerConfigured ? json(response, 200, { models: ['gpt-5.6-luna', 'unpriced-vision'] }) : json(response, 400, { error: 'Enter an API key first.' });
   if (url.pathname === '/api/campaigns' && request.method === 'GET') return json(response, 200, { campaigns: [campaign] });
   if (url.pathname === '/api/campaigns' && request.method === 'POST') return json(response, 201, { campaign });
   if (url.pathname === '/api/studies/preview' && request.method === 'POST') {
     const input = await body(request); lastPreviewDraft = input.draft;
     return json(response, 200, { preview: await planStudy(input.draft) });
   }
+  if (url.pathname === '/api/studies' && request.method === 'GET') return json(response, 200, { studies: [] });
   if (url.pathname === '/api/studies' && request.method === 'POST') {
     const input = await body(request);
     assert.deepEqual(input.draft, lastPreviewDraft, 'freeze must use the reviewed draft');
@@ -57,6 +62,18 @@ try {
     await page.goto(`${origin}/study-new.html`);
     await page.waitForFunction(() => document.querySelectorAll('#source-grid .study-source').length === 24);
     assert.equal(await page.locator('#selected-tray .tray-chip').count(), 6);
+    assert.match(await page.locator('#provider-note').textContent(), /not connected/i);
+    await page.getByLabel('OpenAI API key').fill('test-session-key');
+    await page.getByRole('button', { name: 'Connect', exact: true }).click();
+    await page.waitForFunction(() => document.querySelector('#provider-note')?.textContent.includes('2 model IDs loaded'));
+    assert.match(await page.locator('.route-status').first().textContent(), /Accessible: Yes/);
+    assert.match(await page.locator('.route-status').first().textContent(), /Priced: Yes/);
+    await page.getByLabel('Exact API route 1').fill('unpriced-vision');
+    await page.getByLabel('Exact API route 1').press('Tab');
+    assert.match(await page.locator('.route-status').first().textContent(), /Accessible: Yes/);
+    assert.match(await page.locator('.route-status').first().textContent(), /Priced: No/);
+    await page.getByLabel('Exact API route 1').fill('gpt-5.6-luna');
+    await page.getByLabel('Exact API route 1').press('Tab');
     assert.equal(await page.locator('.pack-tabs [role=tab]').count(), 3);
     await page.locator('.pack-tabs [role=tab]').first().focus(); await page.keyboard.press('ArrowRight');
     assert.equal(await page.locator('.pack-tabs [role=tab]').nth(1).getAttribute('aria-selected'), 'true');
@@ -76,7 +93,7 @@ try {
     await page.locator('#start-study').click(); await page.waitForFunction(() => !document.querySelector('#start-study')?.disabled);
     await page.locator('#start-study').click(); await page.waitForFunction(() => document.querySelector('#frozen-review')?.textContent.includes('starting'));
     assert.equal(startBodies.at(-1).clientRequestId, startBodies.at(-2).clientRequestId, 'start retries must reuse their idempotency key');
-    await context.close(); failFirstStart = true; startBodies = []; frozen = null;
+    await context.close(); failFirstStart = true; startBodies = []; frozen = null; providerConfigured = false;
   }
 } finally {
   await browser.close(); await new Promise(resolve => server.close(resolve));
