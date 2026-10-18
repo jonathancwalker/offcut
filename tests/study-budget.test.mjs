@@ -33,8 +33,8 @@ async function campaign(manager, limitMicros = 50_000_000) {
 
 test('reviewed snapshots use exact route matching, documented image bounds, and integer upward rounding', () => {
   const snapshots = listRateSnapshots();
-  assert.equal(snapshots.length, 1);
-  const snapshot = snapshots[0];
+  assert.equal(snapshots.length, 2);
+  const snapshot = snapshots.find(value => value.id === snapshotId);
   assert.match(snapshot.hash, /^[a-f0-9]{64}$/);
   assert.equal(snapshot.reviewedAt, '2026-10-17T00:00:00.000Z');
   assert.ok(snapshot.sourceUrls.every(url => url.startsWith('https://developers.openai.com/')));
@@ -59,11 +59,11 @@ test('rate books select exact provider snapshots and reject unpriced providers b
   const books = listRateBooks();
   assert.equal(books.length, 1);
   assert.match(books[0].hash, /^[a-f0-9]{64}$/);
-  assert.deepEqual(books[0].snapshots.map(value => value.provider), ['openai']);
+  assert.deepEqual(books[0].snapshots.map(value => value.provider), ['openai', 'google']);
   const estimate = estimateProviderRequest(getRateBook(rateBookId), { provider: 'openai', request: request(), images: [image()] });
   assert.equal(estimate.provider, 'openai');
   assert.throws(
-    () => estimateProviderRequest(getRateBook(rateBookId), { provider: 'google', request: request(), images: [image()] }),
+    () => estimateProviderRequest(getRateBook(rateBookId), { provider: 'anthropic', request: request(), images: [image()] }),
     error => error.code === 'UNPRICED_REQUEST',
   );
   const { dataDir, manager } = await fixture(t);
@@ -72,7 +72,7 @@ test('rate books select exact provider snapshots and reject unpriced providers b
   const reservation = await manager.guard(created.id).reserve({ provider: 'openai', requestId: `${runId(40)}:turn:1`, runId: runId(40), turn: 1, request: request(), images: [image()] });
   assert.equal(reservation.provider, 'openai');
   await assert.rejects(
-    manager.guard(created.id).reserve({ provider: 'google', requestId: `${runId(41)}:turn:1`, runId: runId(41), turn: 1, request: request(), images: [image()] }),
+    manager.guard(created.id).reserve({ provider: 'anthropic', requestId: `${runId(41)}:turn:1`, runId: runId(41), turn: 1, request: request(), images: [image()] }),
     error => error.code === 'UNPRICED_REQUEST',
   );
   const reopened = await createCampaignManager({ dataDir });
