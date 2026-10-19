@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'">
+  <meta name="description" content="What does a model make of itself? Collages, artist statements, and the steps behind them.">
+  <meta name="theme-color" content="#faf9f6">
+  <title>Offcut</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to works</a>
+  <header class="masthead">
+    <a class="wordmark" href="./" aria-label="Offcut — all works">Offcut</a>
+    <p>Model self-conception, through collage.</p>
+    <button class="text-button about-toggle" type="button">About</button>
+  </header>
+  <main id="main">
+    <div id="loading" role="status">Loading works…</div>
+    <section id="gallery" hidden aria-label="Works">
+      <div class="filters">
+        <label class="question-filter">Question<select id="question"><option value="">All questions</option></select></label>
+        <fieldset id="model-filter"><legend>Model</legend><div id="models"></div></fieldset>
+        <output id="count" aria-live="polite"></output>
+      </div>
+      <div id="works"></div>
+      <p id="empty" hidden>No works match these filters. <button id="reset" class="text-button" type="button">Clear filters</button></p>
+    </section>
+    <article id="work" hidden>
+      <a id="back" class="back-link" href="./">← All works</a>
+      <div class="work-heading"><p id="work-model"></p><h1 id="work-question" tabindex="-1"></h1></div>
+      <p id="work-loading" role="status">Loading work…</p>
+      <div id="work-content" class="work-layout" hidden>
+        <section class="playback" aria-label="Collage playback">
+          <div class="stage"><canvas id="canvas" role="img" aria-label="Collage"></canvas></div>
+          <div class="transport">
+            <button id="play" type="button" aria-label="Play the build">Play</button>
+            <button id="previous" class="step-button" type="button" aria-label="Previous step">←</button>
+            <input id="scrub" type="range" min="0" max="0" value="0" aria-label="Build step">
+            <button id="next" class="step-button" type="button" aria-label="Next step">→</button>
+            <label class="speed-label"><span class="sr-only">Playback speed</span><select id="speed" aria-label="Playback speed"><option value="1">1×</option><option value="2" selected>2×</option><option value="4">4×</option><option value="8">8×</option></select></label>
+          </div>
+          <div class="step-caption"><span id="step-action"></span><span id="position"></span></div>
+          <p id="work-materials" class="material-label"></p>
+        </section>
+        <aside class="work-notes">
+          <section class="artist-writing" aria-label="Model's title and statement"><p class="eyebrow">Artist statement</p><h2 id="work-title"></h2><blockquote id="statement"></blockquote></section>
+          <div class="tabs" role="tablist" aria-label="Work details">
+            <button id="trace-tab" role="tab" aria-selected="true" aria-controls="trace-panel" type="button">Trace</button>
+            <button id="materials-tab" role="tab" aria-selected="false" aria-controls="materials-panel" tabindex="-1" type="button">Materials</button>
+          </div>
+          <section id="trace-panel" role="tabpanel" aria-labelledby="trace-tab"><p class="trace-caption">The model’s notes, as it worked.</p><ol id="trace"></ol></section>
+          <section id="materials-panel" role="tabpanel" aria-labelledby="materials-tab" hidden><div id="source-list"></div></section>
+          <details class="full-brief"><summary>Full brief</summary><p id="brief"></p></details>
+        </aside>
+      </div>
+    </article>
+  </main>
+  <footer><span>Offcut · Jonathan Walker</span><button class="text-button about-toggle" type="button">About this study</button></footer>
+  <dialog id="about" aria-labelledby="about-title">
+    <form method="dialog"><button class="text-button" aria-label="Close about" type="submit">Close</button></form>
+    <h2 id="about-title">Working with what’s already there.</h2>
+    <p>Give a model a question, a set of images, and a few tools: cut, place, move, trim. See what it makes.</p>
+    <p id="study-design"></p>
+    <p>Each work keeps its original materials and recorded steps. Titles, statements, and trace notes are the model’s own words.</p>
+    <p>These are prompted self-representations. The notes don’t give us access to private reasoning or establish an inner experience.</p>
+  </dialog>
+  <noscript><p>This gallery needs JavaScript to load the works and replay their steps.</p></noscript>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
