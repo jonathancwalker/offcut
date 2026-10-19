@@ -103,6 +103,33 @@ test('pause waits for the current cell, resume is explicit, and stop marks the r
   assert.equal(ended.entries.filter(entry => entry.status === 'not_run').length, 1);
 });
 
+test('resume retries a credential preflight failure that never created a run', async () => {
+  const f = fixture(2);
+  const runs = runFixture();
+  const start = runs.start.bind(runs);
+  let keyAvailable = false;
+  runs.start = async input => {
+    if (!keyAvailable) throw Object.assign(new Error('Connect a key.'), { code: 'MISSING_CREDENTIAL' });
+    return start(input);
+  };
+  const manager = await createStudyManager({ store: f.store, runs, campaigns: f.campaigns });
+
+  await manager.start(f.id, { clientRequestId: randomUUID(), manifestHash: f.manifest.manifestHash });
+  await manager.wait(f.id);
+  const paused = manager.get(f.id);
+  assert.equal(paused.status, 'paused');
+  assert.deepEqual(paused.entries.map(entry => entry.status), ['failed', 'queued']);
+  assert.equal(paused.entries[0].runId, null);
+
+  keyAvailable = true;
+  await manager.resume(f.id, { clientRequestId: randomUUID(), manifestHash: f.manifest.manifestHash });
+  const completed = await manager.wait(f.id);
+  assert.equal(completed.status, 'completed');
+  assert.deepEqual(completed.entries.map(entry => entry.status), ['completed', 'completed']);
+  assert.deepEqual(runs.launches.map(item => item.study.cellId), f.manifest.executionOrder);
+  assert.deepEqual(f.events.find(event => event.type === 'study_resumed').payload.requeuedCellIds, [f.manifest.executionOrder[0]]);
+});
+
 test('restart reconciles a durable child receipt and never launches automatically', async () => {
   const f = fixture(1);
   const entry = f.state.entries[0];
