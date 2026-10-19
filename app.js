@@ -22,7 +22,7 @@ async function json(url) {
   if (!response.ok) throw new Error(`Could not load this work (${response.status}).`);
   return response.json();
 }
-let index, route, selected, frames=[], images=new Map(), step=0, playing=false, timer, version=0;
+let index, route, selected, frames=[], images=new Map(), step=0, playing=false, timer, version=0, entered=false;
 const cache=new Map();
 const imageCache=new Map();
 const modelFor = id => index.models.find(item => item.id === id);
@@ -172,6 +172,7 @@ function tick() {
 }
 
 async function renderRoute() {
+  if (!entered) return;
   const token=++version;pause();selected=null;frames=[];images=new Map();
   route=readRoute(location.search,index);
   $('loading').hidden=true;$('gallery').hidden=Boolean(route.run);$('work').hidden=!route.run;
@@ -217,6 +218,25 @@ async function renderRoute() {
     console.error(error);
   }
 }
+
+// Entry is intentionally per document visit, never stored in cookies or storage.
+// The URL stays intact so a shared work or filtered gallery opens after entering.
+function showWelcome() {
+  pause();++version;entered=false;selected=null;frames=[];images=new Map();
+  $('about').close();
+  $('gallery-shell').hidden=true;$('welcome').hidden=false;
+  document.title='Offcut';scrollTo(0,0);
+  $('welcome-title').focus({preventScroll:true});
+}
+
+$('enter-gallery').addEventListener('click',() => {
+  entered=true;$('welcome').hidden=true;$('gallery-shell').hidden=false;
+  scrollTo(0,0);$('main').focus({preventScroll:true});
+  if (index) renderRoute();
+});
+$('enter-gallery').disabled=false;
+// Returning from another site can restore the document without re-running JS.
+addEventListener('pageshow',event => {if (event.persisted) showWelcome();});
 
 $('question').addEventListener('change',event => navigate({...route,question:event.target.value,run:''}));
 $('reset').addEventListener('click',() => navigate({question:'',model:'',run:''}));

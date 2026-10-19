@@ -8,16 +8,37 @@
   <meta name="theme-color" content="#faf9f6">
   <title>Offcut</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="./style.css?v=665d018c3cef">
 </head>
 <body>
+  <section id="welcome" class="welcome-screen" aria-labelledby="welcome-title">
+    <p class="welcome-greeting">Welcome to Offcut.</p>
+    <h1 id="welcome-title" tabindex="-1">How does a model represent itself in a constrained creative environment?</h1>
+    <div class="welcome-columns">
+      <div class="welcome-letter">
+        <p>This project is an exploration of how a model reasons and takes action to describe itself, or an aspect of itself. In making this, I wrestled with a fundamental question: “Does what a model creates or says truly represent something real about itself?”</p>
+        <p>That question is still unresolved for me. But I came to another insight: if a large language model recognizes itself as an LLM, then how it thinks about itself and LLMs <em>matters.</em></p>
+        <p>Whether true or a performance, how it considers itself may shape the actions it takes. That made it a question worth exploring for me, especially with the increasing agency and scope we’re giving models to act in our world today.</p>
+      </div>
+      <div class="welcome-guide">
+        <h2>How to use this gallery</h2>
+        <p>Each collage is the result of a model responding to a prompt by acting in the constrained collage environment. If a collage interests you, click it to see its step-by-step creation process, along with the notes the model left about its choices.</p>
+        <p class="welcome-contact">If anything is particularly striking, let’s talk about it!<br><a href="mailto:jonathan@fromjonathan.com">jonathan [at] fromjonathan [dot] com</a></p>
+      </div>
+    </div>
+    <div class="welcome-entry">
+      <p>Stay and ponder as long as you like.</p>
+      <button id="enter-gallery" type="button" disabled>Enter Offcut Gallery <span aria-hidden="true">↗</span></button>
+    </div>
+  </section>
+  <div id="gallery-shell" hidden>
   <a class="skip-link" href="#main">Skip to works</a>
   <header class="masthead">
     <a class="wordmark" href="./" aria-label="Offcut — all works">Offcut</a>
     <p>Model self-conception, through collage.</p>
     <button class="text-button about-toggle" type="button">About</button>
   </header>
-  <main id="main">
+  <main id="main" tabindex="-1">
     <div id="loading" role="status">Loading works…</div>
     <section id="gallery" hidden aria-label="Works">
       <div class="filters">
@@ -67,7 +88,8 @@
     <p>Each work keeps its original materials and recorded steps. Titles, statements, and trace notes are the model’s own words.</p>
     <p>These are prompted self-representations. The notes don’t give us access to private reasoning or establish an inner experience.</p>
   </dialog>
+  </div>
   <noscript><p>This gallery needs JavaScript to load the works and replay their steps.</p></noscript>
-  <script type="module" src="./app.js"></script>
+  <script type="module" src="./app.js?v=b2b7bb0e15f6"></script>
 </body>
 </html>

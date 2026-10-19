@@ -12,3 +12,24 @@ dialog{border:1px solid var(--line);background:var(--paper);color:var(--ink);max
 @media(max-width:1000px){.masthead,main,footer{width:calc(100% - 48px)}.work-grid{gap:32px 24px}.work-image{padding:16px}.work-layout{gap:32px;grid-template-columns:minmax(0,1fr) minmax(270px,.8fr)}.filters{gap:24px}#models{gap:16px}.card-meta{flex-wrap:wrap;gap:2px 12px}}
 @media(max-width:700px){.masthead,main,footer{width:calc(100% - 32px)}.masthead{padding:24px 0 20px;gap:16px;flex-wrap:wrap}.wordmark{font-size:50px}.masthead p{font-size:11px;order:3;flex-basis:100%}.masthead .about-toggle{align-self:center}.filters{flex-wrap:wrap;gap:22px 16px;padding:22px 0 28px}.question-filter{flex-basis:100%;max-width:none}.question-filter select{font-size:16px;min-height:44px}#model-filter{flex:1}#models{gap:24px}#models button{min-height:44px}.question-heading{gap:14px;padding:22px 0}.question-heading h2{font-size:30px}.work-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:28px 16px}.work-image{padding:12px}.card-title{font-size:17px}.card-meta{font-size:12px}.card-material{font-size:10px}.question-group{padding-bottom:42px}.work-layout{grid-template-columns:1fr;gap:25px}.playback{position:static}.stage{padding:18px}#canvas{max-height:65svh}.transport{gap:12px}#play,.step-button,.speed-label select{min-height:44px}.artist-writing{padding-top:12px}.work-heading{margin-bottom:22px}.work-heading h1{font-size:33px}.work-heading>p{line-height:1.6}.turn-link{min-height:36px}.tabs button{min-height:44px}.action-list button{min-height:36px}.trace-turn.active:before{left:-9px;top:28px}.source img{height:190px}footer{gap:15px;font-size:10px}dialog{padding:20px 24px 28px}}
 @media(prefers-reduced-motion:no-preference){.work-image{transition:background .15s}}
+
+/* The welcome is a quiet reading page, with the gallery hidden until entry. */
+.welcome-screen{width:min(1100px,100% - 88px);min-height:100svh;margin:0 auto;padding:64px 0 48px;display:flex;flex-direction:column;justify-content:center}
+.welcome-greeting{font-size:14px;margin-bottom:22px;color:var(--muted)}
+.welcome-screen h1{font:clamp(40px,4.5vw,64px)/1.08 Caslon,Georgia,serif;letter-spacing:-.7px;max-width:1000px;text-wrap:pretty}
+#welcome-title:focus,#main:focus{outline:none}
+.welcome-columns{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);gap:72px;margin-top:44px}
+.welcome-letter,.welcome-guide{font-size:15px;line-height:1.8}
+.welcome-letter p+p,.welcome-guide p+p{margin-top:20px}
+.welcome-letter em{font-weight:600}
+.welcome-guide h2{font-size:14px;font-weight:500;margin:0 0 14px}
+.welcome-guide>p{color:var(--muted)}
+.welcome-guide .welcome-contact{margin-top:28px;color:var(--ink)}
+.welcome-contact a{display:inline-block;margin-top:8px;font-size:13px;text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:4px;overflow-wrap:anywhere}
+.welcome-contact a:hover{text-decoration-color:var(--ink)}
+.welcome-entry{display:flex;align-items:center;justify-content:space-between;gap:32px;border-top:1px solid var(--line);margin-top:36px;padding-top:28px}
+.welcome-entry p{font:italic 21px/1.4 Georgia,serif}
+#enter-gallery{display:flex;align-items:center;justify-content:space-between;gap:40px;min-height:52px;padding:15px 22px;background:var(--ink);color:var(--paper);font-size:14px;text-align:left}
+#enter-gallery:hover{background:#404238}
+@media(max-width:850px){.welcome-screen{width:calc(100% - 48px);padding:40px 0}.welcome-columns{gap:36px;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr)}.welcome-screen h1{font-size:48px}}
+@media(max-width:600px){.welcome-screen{width:calc(100% - 40px);padding:32px 0;justify-content:flex-start}.welcome-greeting{font-size:13px;margin-bottom:18px}.welcome-screen h1{font-size:42px;letter-spacing:-.5px}.welcome-columns{grid-template-columns:1fr;gap:32px;margin-top:32px}.welcome-letter,.welcome-guide{font-size:15px;line-height:1.75}.welcome-entry{align-items:stretch;flex-direction:column;gap:22px;margin-top:30px;padding-top:24px}.welcome-entry p{font-size:20px}#enter-gallery{width:100%}}
