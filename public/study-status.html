@@ -10,7 +10,7 @@
     <section id="study-content" hidden>
       <div class="study-launch-card"><div><p class="eyebrow">Next action</p><h2 id="action-title"></h2><p id="action-copy"></p></div><div id="study-actions" class="study-actions"></div></div>
       <div class="study-status-grid"><section><p class="eyebrow">Conditions</p><dl id="study-conditions"></dl></section><section><p class="eyebrow">Progress</p><div id="study-progress" class="study-progress"></div></section></div>
-      <section class="study-cells-section"><div class="study-section-heading"><p class="eyebrow">Run queue</p><span id="study-updated"></span></div><div id="study-cells" class="study-cells"></div></section>
+      <section class="study-cells-section"><div class="study-section-heading"><div><p class="eyebrow">Run queue</p><span id="study-updated"></span></div><div class="study-filters" aria-label="Filter run queue"><label>Model<select id="study-model-filter"><option value="">All models</option></select></label><label>Prompt<select id="study-prompt-filter"><option value="">All prompts</option></select></label><output id="study-filter-count"></output></div></div><div id="study-cells" class="study-cells"></div><p id="study-cells-empty" class="study-cells-empty" hidden>No runs match these filters.</p></section>
     </section>
   </main>
   <script type="module" src="/study-status.js"></script>

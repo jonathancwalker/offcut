@@ -9,7 +9,9 @@
     <p id="results-loading" class="collection-loading" role="status">Building comparison…</p>
     <section id="results-content" hidden>
       <div class="playback-bar"><div><p class="eyebrow">Synchronized playback</p><span id="playback-caption">Final works</span></div><button id="play-results" class="secondary-button" type="button">▶ Play all</button><input id="playback-range" type="range" min="0" max="100" value="100" step="1" aria-label="Synchronized playback progress"></div>
+      <div class="result-filters" aria-label="Filter comparison"><div><label>Model<select id="result-model-filter"><option value="">All models</option></select></label><label>Prompt<select id="result-prompt-filter"><option value="">All prompts</option></select></label></div><output id="result-filter-count"></output></div>
       <div id="result-grid" class="result-grid"></div>
+      <p id="result-grid-empty" class="result-grid-empty" hidden>No finished works match these filters.</p>
       <p class="measurement-note">Measurements describe recorded behavior and visible material use. They do not score artistic quality or reveal private reasoning.</p>
     </section>
   </main>
