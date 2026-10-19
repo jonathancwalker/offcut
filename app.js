@@ -1,6 +1,6 @@
 import { createState, applyAction } from './engine.mjs';
-import { filteredWorks, readRoute, routeURL, actionLabel, noteAtStep, replayFrames } from './model.mjs';
-import { drawFrame } from './viewer.mjs';
+import { filteredWorks, readRoute, routeURL, actionLabel, noteAtStep, replayFrames } from './model.mjs?v=598f100fb6a1';
+import { drawFrame } from './viewer.mjs?v=2bdda15d7826';
 
 const $ = id => document.getElementById(id);
 const contentURL = value => new URL(`./content/${value}`,import.meta.url).href;
@@ -23,6 +23,8 @@ async function json(url) {
   return response.json();
 }
 let index, route, selected, frames=[], images=new Map(), step=0, playing=false, timer, version=0, entered=false;
+let entering=false, entryVersion=0, entryAnimations=[];
+const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)');
 const cache=new Map();
 const imageCache=new Map();
 const modelFor = id => index.models.find(item => item.id === id);
@@ -172,14 +174,15 @@ function tick() {
 }
 
 async function renderRoute() {
-  if (!entered) return;
+  if (!index) return;
   const token=++version;pause();selected=null;frames=[];images=new Map();
   route=readRoute(location.search,index);
   $('loading').hidden=true;$('gallery').hidden=Boolean(route.run);$('work').hidden=!route.run;
   if (!route.run) {
-    document.title='Offcut';renderGallery();
+    if (entered) document.title='Offcut';
+    renderGallery();
     requestAnimationFrame(() => {
-      if (token !== version) return;
+      if (token !== version || !entered) return;
       const focus=history.state?.focusRun;
       if (focus) [...document.querySelectorAll('.work-card')].find(card => card.dataset.run === focus)?.focus({preventScroll:true});
       scrollTo(0,history.state?.scrollY || 0);
@@ -189,15 +192,17 @@ async function renderRoute() {
   $('work-content').hidden=true;$('work-loading').hidden=false;$('work-loading').replaceChildren(document.createTextNode('Loading work…'));
   $('back').href=routeURL({...route,run:''});
   const summary=index.works.find(work => work.id === route.run);
-  scrollTo(0,0);
+  if (entered) scrollTo(0,0);
   if (!summary) {
     $('work-model').textContent='';$('work-question').textContent='This work isn’t here.';$('work-loading').textContent='Use All works to return to the gallery.';return;
   }
   const model=modelFor(summary.modelId);
   $('work-question').textContent=questionFor(summary.promptId).text;
   $('work-model').textContent=`${model.label} · ${model.model}`;
-  $('work-question').focus({preventScroll:true});
-  document.title=`${summary.title} — Offcut`;
+  if (entered) {
+    $('work-question').focus({preventScroll:true});
+    document.title=`${summary.title} — Offcut`;
+  }
   try {
     let data=cache.get(summary.id);
     if (!data) {data=await json(contentURL(`works/${summary.id}.json`));cache.set(summary.id,data);}
@@ -222,19 +227,65 @@ async function renderRoute() {
 // Entry is intentionally per document visit, never stored in cookies or storage.
 // The URL stays intact so a shared work or filtered gallery opens after entering.
 function showWelcome() {
+  ++entryVersion;entering=false;
+  entryAnimations.forEach(animation=>animation.cancel());entryAnimations=[];
   pause();++version;entered=false;selected=null;frames=[];images=new Map();
   $('about').close();
-  $('gallery-shell').hidden=true;$('welcome').hidden=false;
+  $('gallery-shell').inert=true;$('gallery-shell').setAttribute('aria-hidden','true');
+  document.body.classList.add('is-welcoming');document.body.classList.remove('is-revealing');
+  $('welcome').hidden=false;$('welcome').scrollTop=0;$('enter-gallery').disabled=false;
   document.title='Offcut';scrollTo(0,0);
   $('welcome-title').focus({preventScroll:true});
+  if (index) renderRoute();
 }
 
-$('enter-gallery').addEventListener('click',() => {
-  entered=true;$('welcome').hidden=true;$('gallery-shell').hidden=false;
-  scrollTo(0,0);$('main').focus({preventScroll:true});
-  if (index) renderRoute();
+$('enter-gallery').addEventListener('click',async () => {
+  if (entered || entering) return;
+  entering=true;const token=++entryVersion;
+  $('enter-gallery').disabled=true;document.body.classList.add('is-revealing');
+  const shell=$('gallery-shell'), welcome=$('welcome');
+  if (!reducedMotion.matches && typeof welcome.animate === 'function') {
+    const sheet=welcome.querySelector('.welcome-sheet');
+    const paperStyle=getComputedStyle(sheet), galleryStyle=getComputedStyle(shell);
+    entryAnimations=[
+      sheet.animate([
+        {opacity:paperStyle.opacity,transform:paperStyle.transform},
+        {opacity:0,transform:'translateY(-32px) scale(1.025)'},
+      ],{duration:460,easing:'cubic-bezier(.4,0,.2,1)',fill:'forwards'}),
+      welcome.animate([{backgroundColor:getComputedStyle(welcome).backgroundColor},{backgroundColor:'transparent'}],{duration:620,fill:'forwards'}),
+      shell.animate([
+        {opacity:galleryStyle.opacity,filter:galleryStyle.filter,transform:galleryStyle.transform},
+        {opacity:1,filter:'blur(0px) saturate(1)',transform:'scale(1)'},
+      ],{duration:620,easing:'cubic-bezier(.2,.7,.2,1)',fill:'forwards'}),
+    ];
+    await Promise.allSettled(entryAnimations.map(animation=>animation.finished));
+  }
+  // A restored visit may have reopened the welcome while this was animating.
+  if (token !== entryVersion) return;
+  entered=true;entering=false;welcome.hidden=true;
+  document.body.classList.remove('is-welcoming','is-revealing');
+  entryAnimations.forEach(animation=>animation.cancel());entryAnimations=[];
+  shell.inert=false;shell.removeAttribute('aria-hidden');$('enter-gallery').disabled=false;
+  const summary=index?.works.find(work=>work.id===route?.run);
+  document.title=summary ? `${summary.title} — Offcut` : 'Offcut';
+  scrollTo(0,route?.run ? 0 : history.state?.scrollY || 0);
+  (route?.run ? $('work-question') : $('main')).focus({preventScroll:true});
 });
 $('enter-gallery').disabled=false;
+$('welcome-title').focus({preventScroll:true});
+// Keep keyboard focus on the floating sheet while the gallery is inert.
+$('welcome').addEventListener('keydown',event => {
+  if (event.key !== 'Tab') return;
+  const stops=[...$('welcome').querySelectorAll('a[href],button:not(:disabled)')];
+  if (event.shiftKey && [stops[0],$('welcome-title')].includes(document.activeElement)) {
+    event.preventDefault();stops.at(-1)?.focus();
+  } else if (!event.shiftKey && document.activeElement===stops.at(-1)) {
+    event.preventDefault();stops[0]?.focus();
+  }
+});
+reducedMotion.addEventListener('change',() => {
+  if (reducedMotion.matches) entryAnimations.forEach(animation=>animation.finish());
+});
 // Returning from another site can restore the document without re-running JS.
 addEventListener('pageshow',event => {if (event.persisted) showWelcome();});
 

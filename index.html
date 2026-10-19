@@ -8,10 +8,11 @@
   <meta name="theme-color" content="#faf9f6">
   <title>Offcut</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="./style.css?v=665d018c3cef">
+  <link rel="stylesheet" href="./style.css?v=60c2ba14fb4b">
 </head>
-<body>
-  <section id="welcome" class="welcome-screen" aria-labelledby="welcome-title">
+<body class="is-welcoming">
+  <section id="welcome" class="welcome-screen" role="dialog" aria-modal="true" aria-labelledby="welcome-title">
+    <div class="welcome-sheet">
     <p class="welcome-greeting">Welcome to Offcut.</p>
     <h1 id="welcome-title" tabindex="-1">How does a model represent itself in a constrained creative environment?</h1>
     <div class="welcome-columns">
@@ -28,10 +29,11 @@
     </div>
     <div class="welcome-entry">
       <p>Stay and ponder as long as you like.</p>
-      <button id="enter-gallery" type="button" disabled>Enter Offcut Gallery <span aria-hidden="true">↗</span></button>
+      <button id="enter-gallery" type="button" disabled>Enter Offcut Gallery <span class="entry-arrow" aria-hidden="true">→</span></button>
+    </div>
     </div>
   </section>
-  <div id="gallery-shell" hidden>
+  <div id="gallery-shell" inert aria-hidden="true">
   <a class="skip-link" href="#main">Skip to works</a>
   <header class="masthead">
     <a class="wordmark" href="./" aria-label="Offcut — all works">Offcut</a>
@@ -90,6 +92,6 @@
   </dialog>
   </div>
   <noscript><p>This gallery needs JavaScript to load the works and replay their steps.</p></noscript>
-  <script type="module" src="./app.js?v=b2b7bb0e15f6"></script>
+  <script type="module" src="./app.js?v=c66ed45b31b7"></script>
 </body>
 </html>

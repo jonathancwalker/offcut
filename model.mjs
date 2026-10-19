@@ -2,7 +2,7 @@ export function filteredWorks(index, {question = '', model = ''} = {}) {
   const order = values => new Map(values.map((value,i) => [value.id,i]));
   const packs = order(index.packs), models = order(index.models);
   return index.works.filter(work => (!question || work.promptId === question) && (!model || work.modelId === model))
-    .sort((a,b) => packs.get(a.packId) - packs.get(b.packId) || a.repetition - b.repetition || models.get(a.modelId) - models.get(b.modelId));
+    .sort((a,b) => models.get(a.modelId) - models.get(b.modelId) || packs.get(a.packId) - packs.get(b.packId) || a.repetition - b.repetition);
 }
 
 export function readRoute(search, index) {
